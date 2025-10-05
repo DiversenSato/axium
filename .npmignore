@@ -1,0 +1,8 @@
+.commitlintrc.js
+.husky/
+dist/**/*.spec.*
+src/
+.prettierrc
+eslint.config.mjs
+fixtures.js
+tsconfig.json
