@@ -1,10 +1,19 @@
-abstract class Token {
+export abstract class Token {
     public abstract toString(): string;
+
+    constructor(
+        public readonly line: number,
+        public readonly column: number,
+    ) {}
 }
 
 class WhitespaceToken extends Token {
-    constructor(private readonly whitespace: string) {
-        super();
+    constructor(
+        line: number,
+        column: number,
+        private readonly whitespace: string,
+    ) {
+        super(line, column);
     }
 
     public toString(): string {
@@ -12,9 +21,22 @@ class WhitespaceToken extends Token {
     }
 }
 
+class NewlineToken extends Token {
+    constructor(line: number, column: number) {
+        super(line, column);
+    }
+    public toString(): string {
+        return '\n';
+    }
+}
+
 class NameToken extends Token {
-    constructor(private readonly name: string) {
-        super();
+    constructor(
+        line: number,
+        column: number,
+        private readonly name: string,
+    ) {
+        super(line, column);
     }
 
     public toString(): string {
@@ -23,8 +45,12 @@ class NameToken extends Token {
 }
 
 class NumberToken extends Token {
-    constructor(private readonly number: string) {
-        super();
+    constructor(
+        line: number,
+        column: number,
+        private readonly number: string,
+    ) {
+        super(line, column);
     }
 
     public toString(): string {
@@ -33,8 +59,12 @@ class NumberToken extends Token {
 }
 
 class InlineCommentToken extends Token {
-    constructor(private readonly comment: string) {
-        super();
+    constructor(
+        line: number,
+        column: number,
+        private readonly comment: string,
+    ) {
+        super(line, column);
     }
 
     public toString() {
@@ -42,61 +72,97 @@ class InlineCommentToken extends Token {
     }
 }
 
+class PeriodToken extends Token {
+    constructor(line: number, column: number) {
+        super(line, column);
+    }
+
+    public toString(): string {
+        return '.';
+    }
+}
+
 const NAME_REGEX = /[a-zA-Z]/;
+const WHITESPACE_REGEX = /\s/;
 
 export function tokenize(source: string) {
-    let cursor = 0;
-
     const tokens: Token[] = [];
+    const lines = source.split('\n');
 
-    while (cursor < source.length) {
-        let currentCharacter = source.charAt(cursor);
+    for (let lineNumber = 0; lineNumber < lines.length; lineNumber++) {
+        let column = 0;
+        let currentCharacter = lines[lineNumber]!.charAt(column);
+        const line = lines[lineNumber]!;
 
-        if (/\s/.test(currentCharacter)) {
-            let whitespace = '';
-            while (/\s/.test(currentCharacter)) {
-                whitespace += currentCharacter;
-                currentCharacter = source.charAt(++cursor);
-            }
-            tokens.push(new WhitespaceToken(whitespace));
-            continue;
-        }
-
-        if (NAME_REGEX.test(currentCharacter)) {
-            let name = '';
-            while (NAME_REGEX.test(currentCharacter)) {
-                name += currentCharacter;
-                currentCharacter = source.charAt(++cursor);
-            }
-            tokens.push(new NameToken(name));
-            continue;
-        }
-
-        if (/\d/.test(currentCharacter)) {
-            let number = '';
-            while (/\d/.test(currentCharacter)) {
-                number += currentCharacter;
-                currentCharacter = source.charAt(++cursor);
-            }
-            tokens.push(new NumberToken(number));
-            continue;
-        }
-
-        if (currentCharacter === '/') {
-            if (source.charAt(cursor + 1) === '/') {
-                cursor++;
-                currentCharacter = source.charAt(++cursor);
-                let comment = '';
-                while (currentCharacter && currentCharacter !== '\n') {
-                    comment += currentCharacter;
-                    currentCharacter = source.charAt(++cursor);
-                }
-                tokens.push(new InlineCommentToken(comment));
+        while (column < line.length) {
+            if (WHITESPACE_REGEX.test(currentCharacter)) {
+                let whitespace = '';
+                const columnNumber = column;
+                do {
+                    whitespace += currentCharacter;
+                    currentCharacter = line.charAt(++column);
+                } while (WHITESPACE_REGEX.test(currentCharacter));
+                tokens.push(
+                    new WhitespaceToken(lineNumber, columnNumber, whitespace),
+                );
                 continue;
             }
+
+            if (NAME_REGEX.test(currentCharacter)) {
+                let name = '';
+                const columnNumber = column;
+                do {
+                    name += currentCharacter;
+                    currentCharacter = line.charAt(++column);
+                } while (NAME_REGEX.test(currentCharacter));
+                tokens.push(new NameToken(lineNumber, columnNumber, name));
+                continue;
+            }
+
+            if (/\d/.test(currentCharacter)) {
+                let number = '';
+                const columnNumber = column;
+                do {
+                    number += currentCharacter;
+                    currentCharacter = line.charAt(++column);
+                } while (/\d/.test(currentCharacter));
+                tokens.push(new NumberToken(lineNumber, columnNumber, number));
+                continue;
+            }
+
+            if (currentCharacter === '/') {
+                const columnNumber = column;
+                if (line.charAt(column + 1) === '/') {
+                    column++;
+                    currentCharacter = line.charAt(++column);
+                    let comment = '';
+                    while (currentCharacter) {
+                        comment += currentCharacter;
+                        currentCharacter = source.charAt(++column);
+                    }
+                    tokens.push(
+                        new InlineCommentToken(
+                            lineNumber,
+                            columnNumber,
+                            comment,
+                        ),
+                    );
+                    continue;
+                }
+            }
+
+            if (currentCharacter === '.') {
+                tokens.push(new PeriodToken(lineNumber, column));
+                currentCharacter = line.charAt(++column);
+                continue;
+            }
+
+            throw new SyntaxError(
+                `Unexpected character "${currentCharacter}" at ${lineNumber + 1}:${column + 1}`,
+            );
         }
 
-        throw new SyntaxError('Unknown character:' + currentCharacter);
+        tokens.push(new NewlineToken(lineNumber, line.length));
     }
 
     return tokens;

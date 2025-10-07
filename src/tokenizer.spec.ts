@@ -8,16 +8,18 @@ describe('Tokenizer', () => {
             const source = '         ';
             const tokens = tokenize(source);
 
-            expect(tokens.length).to.equal(1);
+            expect(tokens.length).to.equal(2);
             expect(tokens[0]!.toString()).to.equal(source);
         });
 
-        it('should keep newlines in the same token', () => {
+        it('should separate newlines into different tokens', () => {
             const source = '     \n    ';
             const tokens = tokenize(source);
 
-            expect(tokens.length).to.equal(1);
-            expect(tokens[0]!.toString()).to.equal(source);
+            expect(tokens.length).to.equal(4);
+            expect(tokens[0]!.toString()).to.equal('     ');
+            expect(tokens[1]!.toString()).to.equal('\n');
+            expect(tokens[2]!.toString()).to.equal('    ');
         });
     });
 
@@ -26,7 +28,7 @@ describe('Tokenizer', () => {
             const source = 'myVar';
             const tokens = tokenize(source);
 
-            expect(tokens.length).to.equal(1);
+            expect(tokens.length).to.equal(2);
             expect(tokens[0]!.toString()).to.equal(source);
         });
     });
@@ -37,7 +39,7 @@ describe('Tokenizer', () => {
                 const source = '// my comment';
                 const tokens = tokenize(source);
 
-                expect(tokens.length).to.equal(1);
+                expect(tokens.length).to.equal(2);
                 expect(tokens[0]!.toString()).to.equal(source);
             });
         });
@@ -47,7 +49,7 @@ describe('Tokenizer', () => {
                 const source = 'hi// my comment';
                 const tokens = tokenize(source);
 
-                expect(tokens.length).to.equal(2);
+                expect(tokens.length).to.equal(3);
                 expect(tokens[0]!.toString()).to.equal('hi');
                 expect(tokens[1]!.toString()).to.equal('// my comment');
             });
