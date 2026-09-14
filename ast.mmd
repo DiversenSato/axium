@@ -1,0 +1,99 @@
+---
+config:
+  flowchart:
+    defaultRenderer: elk
+---
+graph TD
+  66[Program]
+  66 --> 10
+  10[EnumDeclaration]
+  10 --> 0
+  0[Identifier]
+  1[TokenKind]
+  0 --> 1
+  66 --> 23
+  23[StructDeclaration]
+  66 --> 41
+  41[FunctionDeclaration]
+  41 --> 29
+  29[Identifier]
+  30[println]
+  29 --> 30
+  41 --> 28
+  28[Parameter]
+  28 --> 24
+  24[Identifier]
+  25[string]
+  24 --> 25
+  28 --> 26
+  26[Identifier]
+  27[s]
+  26 --> 27
+  41 --> 40
+  40[BlockStatement]
+  40 --> 39
+  39[ExpressionStatement]
+  39 --> 38
+  38[CallExpression]
+  38 --> 35
+  35[MemberExpression]
+  35 --> 31
+  31[Identifier]
+  32[console]
+  31 --> 32
+  35 --> 33
+  33[Identifier]
+  34[log]
+  33 --> 34
+  38 --> 36
+  36[Identifier]
+  37[s]
+  36 --> 37
+  66 --> 65
+  65[FunctionDeclaration]
+  65 --> 42
+  42[Identifier]
+  43[main]
+  42 --> 43
+  65 --> 64
+  64[BlockStatement]
+  64 --> 63
+  63[VariableDeclaration]
+  63 --> 61
+  61[Identifier]
+  62[token]
+  61 --> 62
+  63 --> 60
+  60[StructInstantiationExpression]
+  60 --> 44
+  44[Identifier]
+  45[Token]
+  44 --> 45
+  60 --> 59
+  59[StructMemberBlock]
+  59 --> 53
+  53[StructKeyValuePair]
+  53 --> 46
+  46[Identifier]
+  47[kind]
+  46 --> 47
+  53 --> 52
+  52[MemberExpression]
+  52 --> 48
+  48[Identifier]
+  49[TokenKind]
+  48 --> 49
+  52 --> 50
+  50[Identifier]
+  51[Identifier]
+  50 --> 51
+  59 --> 58
+  58[StructKeyValuePair]
+  58 --> 54
+  54[Identifier]
+  55[value]
+  54 --> 55
+  58 --> 56
+  56[StringLiteral]
+  57['Hello, World!']
+  56 --> 57

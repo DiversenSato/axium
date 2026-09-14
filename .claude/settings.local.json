@@ -1,0 +1,5 @@
+{
+    "permissions": {
+        "allow": ["Bash(bun src/main.ts --no-check test/axiumc.axi)"]
+    }
+}

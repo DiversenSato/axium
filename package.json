@@ -4,13 +4,6 @@
     "description": "Compiler for the axium language",
     "bin": "dist/main.js",
     "type": "module",
-    "scripts": {
-        "test": "npx @gddl/testing  -T dist/**/*.spec.js",
-        "prepare": "husky && husky install",
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "lint": "eslint src"
-    },
     "repository": {
         "type": "git",
         "url": "git+https://github.com/DiversenSato/axium.git"
@@ -21,25 +14,35 @@
         "url": "https://github.com/DiversenSato/axium/issues"
     },
     "homepage": "https://github.com/DiversenSato/axium#readme",
+    "scripts": {
+        "test": "npx @gddl/testing  -T dist/**/*.spec.js",
+        "prepare": "husky",
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "lint": "eslint src",
+        "prettier": "prettier --write src"
+    },
+    "dependencies": {
+        "chalk": "^5.6.2",
+        "commander": "^14.0.3",
+        "watch": "^1.0.2"
+    },
     "devDependencies": {
-        "@commitlint/cli": "^19.8.1",
-        "@commitlint/config-conventional": "^19.8.1",
-        "@eslint/js": "^9.36.0",
-        "@gddl/testing": "^1.0.0",
-        "@types/chai": "^5.2.2",
-        "@types/node": "^24.5.2",
-        "chai": "^6.2.0",
-        "eslint": "^9.36.0",
+        "@commitlint/cli": "^21.2.2",
+        "@commitlint/config-conventional": "^21.2.2",
+        "@eslint/js": "^9.39.5",
+        "@types/bun": "^1.4.2",
+        "@types/chai": "^5.2.3",
+        "@types/watch": "^1.0.6",
+        "chai": "^6.2.2",
+        "eslint": "^9.39.5",
         "husky": "^9.1.7",
-        "lint-staged": "^16.2.0",
-        "prettier": "^3.6.2",
-        "typescript": "^5.9.2",
-        "typescript-eslint": "^8.44.1"
+        "lint-staged": "^17.5.1",
+        "prettier": "^3.9.6",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.70.0"
     },
     "lint-staged": {
         "*.{js,ts,json,md}": "prettier --write"
-    },
-    "dependencies": {
-        "commander": "^14.0.1"
     }
 }
