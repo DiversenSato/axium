@@ -1,5 +1,5 @@
 import super::ast::ast::{Span};
-import super::span::sourceMap::{sourceMap};
+import super::span::sourceMap::{addFile};
 
 export enum TokenKind {
     LineComment,
@@ -91,7 +91,7 @@ export struct Lexer {
         return Lexer {
             position: 0,
             source: file.content,
-            sourceId: sourceMap.addFile(file.name, file.content),
+            sourceId: addFile(file.name, file.content),
         };
     },
 

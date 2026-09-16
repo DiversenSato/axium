@@ -50,8 +50,19 @@ export function main(argv: string[]) {
                     options.outDir = outDir;
                 } else if (option === 'no-check') {
                     options.checkTypes = false;
+                } else if (option === 'help') {
+                    printHelp();
+                    return;
                 } else {
                     throw new Error('Unknown option `' + option + '`');
+                }
+            } else if (arg.startsWith('-')) {
+                const alias = arg.slice(1);
+                if (alias === 'h') {
+                    printHelp();
+                    return;
+                } else {
+                    throw new Error('Unknown alias `' + alias + '`');
                 }
             } else {
                 // Argument
@@ -84,6 +95,7 @@ export function main(argv: string[]) {
             }
         } else if (error instanceof Error) {
             console.log(chalk.bold(chalk.redBright('error: ') + error.message));
+            if (options.verbose) console.log(error.stack);
         } else throw error;
     }
 
@@ -168,4 +180,8 @@ function compileFile(session: ParseSession, inputPath: string, options: CommandO
 
         compileFile(session, pathToDependency, options);
     }
+}
+
+function printHelp() {
+    console.log('Usage: axiumc [options] input');
 }

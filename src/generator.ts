@@ -32,6 +32,7 @@ import {
     StructMethod,
     StaticVariableDeclaration,
     CharLiteral,
+    ObjectLiteral,
 } from './ast/ast.js';
 
 interface Options {
@@ -108,6 +109,10 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
         return `[${node.values.map((v) => generator(v, options)).join(', ')}]`;
     }
 
+    if (node instanceof ObjectLiteral) {
+        return genObjectLiteral(node, options);
+    }
+
     if (node instanceof CallExpression) {
         return (
             indentString +
@@ -125,6 +130,7 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     }
 
     if (node instanceof Identifier) {
+        if (node.value === 'None') return 'null';
         return node.value;
     }
 
@@ -189,6 +195,7 @@ function indentString(indent: number): string {
 }
 
 function genStructInstantiation(node: StructInstantiationExpression, options: Options, scope: number): string {
+    if (node.values.values.length === 0) return `new ${node.struct.value};`;
     return `new ${node.struct.value}({
 ${node.values.values.map((v) => `${indentString(scope * INDENT_INCREMENT) + v.property.value}: ${generator(v.value, options)},`).join('\n')}
 ${indentString((scope - 1) * INDENT_INCREMENT)}})`;
@@ -238,4 +245,10 @@ function genIf(node: IfStatement, options: Options, indent: number, scope: numbe
     }
 
     return `${indentString}if (${generator(node.condition, options)}) ${generator(node.block, options, indent, scope)}`;
+}
+
+function genObjectLiteral(node: ObjectLiteral, options: Options): string {
+    return `{ ${Object.keys(node.values)
+        .map((key) => key + (node.values[key] !== null ? `: ${generator(node.values[key]!, options)}` : ''))
+        .join(', ')} }`;
 }

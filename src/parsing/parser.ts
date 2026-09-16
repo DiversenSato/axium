@@ -40,6 +40,7 @@ import {
     StructMethod,
     StructField,
     CharLiteral,
+    ObjectLiteral,
 } from '../ast/ast.js';
 import { SyntaxError } from '../errors/SyntaxError.js';
 import { Lexer, Token, TokenKind } from '../lexer/lexer.js';
@@ -567,7 +568,7 @@ export class Parser {
                 return new ArrayLiteral(Span.fromEnclosing(token.span, end), values);
             }
             case TokenKind.OpenBrace: {
-                const values = {};
+                const values: Record<string, ExpressionNode | null> = {};
                 while (true) {
                     if (this.match(TokenKind.CloseBrace)) break;
                     const key = this.expect(TokenKind.Identifier);
@@ -576,6 +577,7 @@ export class Parser {
                         this.advance();
                         val = this.expression();
                     }
+                    values[key.value] = val;
 
                     if (!this.match(TokenKind.Comma)) break;
                     this.advance(); // Consume comma

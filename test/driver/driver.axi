@@ -48,6 +48,8 @@ export fn main([string] argv) {
                 let outDir = args[++i];
                 if (outDir == undefined) return Error("out-dir option was passed but no path was specified");
                 options.outDir = outDir;
+            } else if (option == "-no-check") {
+                options.checkTypes = false;
             } else {
                 return Error("Unknown option `" + option + "`");
             }

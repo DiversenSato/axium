@@ -290,6 +290,15 @@ export class ArrayLiteral extends Node {
     }
 }
 
+export class ObjectLiteral extends Node {
+    public constructor(
+        span: Span,
+        public readonly values: Record<string, ExpressionNode | null>,
+    ) {
+        super(span, NodeType.ArrayLiteral);
+    }
+}
+
 export class Ternary extends Node {
     public constructor(
         span: Span,
@@ -446,6 +455,7 @@ export type ExpressionNode =
     | CharLiteral
     | StringLiteral
     | ArrayLiteral
+    | ObjectLiteral
     | Ternary
     | Lambda
     | UnaryExpression

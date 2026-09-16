@@ -1,0 +1,33 @@
+.TH AXIUMC 1 2026-09-14 "axium 0.1.0" "Axium Compiler Reference"
+
+.SH NAME
+axiumc \- compile axium source code.
+
+.SH SYNOPSIS
+.B axiumc
+[\fIoptions\fR] \fIfile\fR
+
+.SH DESCRIPTION
+.B axiumc
+is a custom tool designed to automate a specific sequence of operations.
+It processes inputs securely and displays the results directly to stdout.
+
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Display a helpful usage summary and exit immediately.
+.TP
+.BR " \-\-verbose
+Log verbose information while compiling.
+.TP
+.BR " \-\-run
+Pass this to run the generated output.
+.TP
+.BR " \-\-out\-dir=dir
+Set the directory to emit to. Defaults to ./target/dev
+.TP
+.BR " \-\-no\-check
+Don't check types.
+
+.SH BUGS
+No known bugs. Please report issues via GitHub.
