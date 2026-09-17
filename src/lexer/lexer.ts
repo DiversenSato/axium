@@ -1,6 +1,6 @@
 import { Span } from '../ast/ast.js';
 import { SyntaxError } from '../errors/SyntaxError.js';
-import { sourceMap, type SourceFile } from '../span/sourceMap.js';
+import { addFile, type SourceFile } from '../span/sourceMap.js';
 
 export enum TokenKind {
     LineComment,
@@ -25,20 +25,21 @@ export enum TokenKind {
     Arrow,
     Question,
 
-    Plus,
-    Dash,
-    Star,
-    ForwardSlash,
-    Equals,
-    DoubleEquals,
-    NotEquals,
-    LessThan,
-    LessThanEquals,
-    GreaterThan,
-    GreaterThanEquals,
-    Exclamation,
-    Pipe,
-    DoublePipe,
+    Plus, // +
+    Dash, // -
+    Star, // *
+    ForwardSlash, // /
+    Equals, // =
+    DoubleEquals, // ==
+    NotEquals, // !=
+    Increment, // +=
+    LessThan, // <
+    LessThanEquals, // <=
+    GreaterThan, // >
+    GreaterThanEquals, // >=
+    Exclamation, // !
+    Pipe, // |
+    DoublePipe, // |
 
     Ampersand,
     And,
@@ -78,7 +79,7 @@ export class Lexer {
 
     constructor(file: SourceFile) {
         this.source = file.content;
-        this.sourceId = sourceMap.addFile(file.name, file.content);
+        this.sourceId = addFile(file.name, file.content);
     }
 
     private peek(offset?: number): string | undefined {
@@ -140,7 +141,13 @@ export class Lexer {
         if (char === '[') return TokenKind.OpenBracket;
         if (char === ']') return TokenKind.CloseBracket;
 
-        if (char === '+') return TokenKind.Plus;
+        if (char === '+') {
+            if (this.peek() === '=') {
+                this.advance();
+                return TokenKind.Increment;
+            }
+            return TokenKind.Plus;
+        }
         if (char === '-') return TokenKind.Dash;
         if (char === '*') return TokenKind.Star;
         if (char === '/') return TokenKind.ForwardSlash;

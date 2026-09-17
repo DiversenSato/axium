@@ -8,7 +8,7 @@ export interface SourceFile {
 const ids = new Map<string, number>();
 const files = new Map<number, SourceFile>();
 
-function addFile(name: string, content: string): number {
+export function addFile(name: string, content: string): number {
     const id = ids.get(name);
     if (id) return id;
 
@@ -16,7 +16,7 @@ function addFile(name: string, content: string): number {
     return ids.getOrInsert(name, ids.size);
 }
 
-function getSnippet(span: Span) {
+export function getSnippet(span: Span) {
     const content = files.get(span.parent)?.content;
     if (content === undefined) throw new Error("the file the span refers to doesn't exist");
 
@@ -39,21 +39,14 @@ function getSnippet(span: Span) {
     };
 }
 
-function getSource(span: Span) {
+export function getSource(span: Span) {
     const source = files.get(span.parent);
     if (source === undefined) throw new Error('source does not exist');
     return source;
 }
 
-function getSourceId(name: string) {
+export function getSourceId(name: string) {
     const id = ids.get(name);
     if (id === undefined) throw new Error('source does not exist');
     return id;
 }
-
-export const sourceMap = {
-    addFile,
-    getSnippet,
-    getSource,
-    getSourceId,
-};

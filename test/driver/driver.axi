@@ -5,7 +5,7 @@ import fs;
 import path; // import path from "path";
 
 import super::generator::{generator}; // import { generator } from "./generator.js";
-import super::parsing::parser::{createParser,parseProgram}; // import { Parser } from "../../parsing/parser.js";
+import super::parsing::parser::{Parser}; // import { Parser } from "../../parsing/parser.js";
 import super::parsing::parseSession::{ParseSession}; // import { Parser } from "../../parsing/parser.js";
 import super::typeChecker::typeChecker::{TypeChecker}; // import { TypeChecker } from "./typeChecker/typeChecker.js";
 // import self::errors::syntaxError::SyntaxError; // import { SyntaxError } from "../errors/SyntaxError.js";
@@ -33,7 +33,7 @@ export fn main([string] argv) {
     let mut errorCount = 0;
     let mut i = -1;
     while (i < args.length) {
-        i = i + 1;
+        i += 1;
         let arg = args[i];
         if (!arg) continue;
 
@@ -125,13 +125,13 @@ fn compileFile(ParseSession session, string inputPath, CommandOptions options) {
 
     let inputDirectory = path.join(inputPath, "../");
     let sourceCode = fs.readFileSync(inputPath, "utf8");
-    let parser = createParser(
-        SourceFile {
+    let parser = Parser.from(
+        {
             name: inputPath,
             content: sourceCode,
         }
     );
-    let ast = parseProgram(parser, "main");
+    let ast = parser.parseProgram("main");
 
     if (options.checkTypes) TypeChecker.new(ast).check();
     let output = generator(ast, GeneratorOptions { verbose: options.verbose, });

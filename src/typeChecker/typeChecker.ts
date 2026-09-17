@@ -3,9 +3,11 @@ import {
     EnumDeclaration,
     FunctionDeclaration,
     Identifier,
+    NodeType,
     Span,
     StructDeclaration,
     StructInstantiationExpression,
+    StructMethod,
     type Program,
     type StructMember,
 } from '../ast/ast.js';
@@ -19,16 +21,16 @@ export class TypeChecker {
         [
             'Error',
             {
-                block: { id: 0, nodeType: '', span: new Span(0, 0, 0), statements: [] },
+                block: { id: 0, nodeType: NodeType.Identifier, span: new Span(0, 0, 0), statements: [] },
                 id: 0,
                 modifiers: [],
-                name: { id: 0, nodeType: '', span: new Span(0, 0, 0), value: 'Error' },
-                nodeType: '',
+                name: { id: 0, nodeType: NodeType.Identifier, span: new Span(0, 0, 0), value: 'Error' },
+                nodeType: NodeType.FunctionDeclaration,
                 parameters: [],
                 span: new Span(0, 0, 0),
                 type: {
                     id: 0,
-                    nodeType: '',
+                    nodeType: NodeType.Identifier,
                     span: new Span(0, 0, 0),
                     value: 'void',
                 },
@@ -88,6 +90,8 @@ export class TypeChecker {
                     if (structDef === undefined) throw new SyntaxError('struct does not exist', node.struct.span);
 
                     for (const propDef of structDef) {
+                        if (propDef instanceof StructMethod) continue;
+
                         const property = node.values.values.find((p) => p.property.value === propDef.name.value);
                         if (property === undefined)
                             throw new SyntaxError(

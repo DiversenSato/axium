@@ -44,7 +44,7 @@ import {
 } from '../ast/ast.js';
 import { SyntaxError } from '../errors/SyntaxError.js';
 import { Lexer, Token, TokenKind } from '../lexer/lexer.js';
-import { sourceMap, type SourceFile } from '../span/sourceMap.js';
+import { getSourceId, type SourceFile } from '../span/sourceMap.js';
 
 const MODIFIERS = new Set(['export']);
 const PRECEDENCE: Partial<Record<TokenKind, number>> = {
@@ -54,6 +54,7 @@ const PRECEDENCE: Partial<Record<TokenKind, number>> = {
 
     // Assignment and misc
     [TokenKind.Equals]: 2,
+    [TokenKind.Increment]: 2,
     [TokenKind.Arrow]: 2,
     [TokenKind.Question]: 2,
 
@@ -104,7 +105,8 @@ export class Parser {
 
     public constructor(source: SourceFile) {
         const lexer = new Lexer(source);
-        this.sourceId = sourceMap.getSourceId(source.name);
+        this.sourceId = getSourceId(source.name);
+
         const tokens: Token[] = [];
         while (lexer.hasNext()) {
             const token = lexer.nextToken();

@@ -1,10 +1,10 @@
 import chalk from 'chalk';
-import { sourceMap } from '../span/sourceMap.js';
 import type { Span } from '../ast/ast.js';
+import { getSnippet, getSource } from '../span/sourceMap.js';
 
 export function printCodeView(span: Span) {
-    const location = sourceMap.getSnippet(span);
-    const source = sourceMap.getSource(span);
+    const location = getSnippet(span);
+    const source = getSource(span);
 
     const lineNumber = (location.line + 1).toString();
 
