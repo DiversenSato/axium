@@ -33,6 +33,7 @@ import {
     StaticVariableDeclaration,
     CharLiteral,
     ObjectLiteral,
+    type EnumVariant,
 } from './ast/ast.js';
 
 interface Options {
@@ -163,7 +164,7 @@ ${indentString}})()`;
 
     if (node instanceof EnumDeclaration) {
         return `${genItemModifers(node.modifiers)}const ${generator(node.name, options)} = {
-${node.symbols.map((s, i) => `    ${generator(s, options)}: ${i},`).join('\n')}
+${node.variants.map((s, i) => `    ${genEnumVariant(s)}: ${i},`).join('\n')}
 };\n`;
     }
 
@@ -188,6 +189,10 @@ ${node.symbols.map((s, i) => `    ${generator(s, options)}: ${i},`).join('\n')}
     }
 
     throw new Error('Unknown node ' + node.nodeType);
+}
+
+function genEnumVariant(variant: EnumVariant) {
+    return variant.name.value;
 }
 
 function indentString(indent: number): string {

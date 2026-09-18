@@ -12,10 +12,10 @@ import super::typeChecker::typeChecker::{TypeChecker}; // import { TypeChecker }
 // import self::commands::printCodeView::printCodeView; // import { printCodeView } from "../commands/printCodeView.js";
 
 struct CommandOptions {
-    checkTypes: bool,
-    outDir: string,
-    run: bool,
-    verbose: bool,
+    checkTypes: bool;
+    outDir: string;
+    run: bool;
+    verbose: bool;
 }
 
 export fn main([string] argv) {

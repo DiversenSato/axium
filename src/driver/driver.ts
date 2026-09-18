@@ -121,6 +121,7 @@ function compile(session: ParseSession, inputPath: string, options: CommandOptio
     const endTime = nanoseconds();
 
     const outputFileName = path.basename(inputPath, path.extname(inputPath));
+    console.log();
     console.log(chalk.greenBright.bold(outputFileName + ' built succesfully!'));
     console.log(`  in ${((endTime - startTime) / 1_000_000).toFixed(2)}ms`);
 }

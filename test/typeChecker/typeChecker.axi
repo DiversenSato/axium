@@ -1,3 +1,3 @@
 export struct TypeChecker {
-    enums: Map,
+    enums: Map;
 }

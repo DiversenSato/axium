@@ -133,9 +133,9 @@ export class FunctionDeclaration extends Node {
         startSpan: Span,
         public readonly name: Identifier,
         public readonly type: Identifier | null,
-        public readonly parameters: Parameter[] = [],
+        public readonly parameters: Parameter[],
         public readonly block: BlockStatement,
-        public readonly modifiers: Identifier[] = [],
+        public readonly modifiers: Identifier[],
     ) {
         super(Span.fromEnclosing(startSpan, block.span), NodeType.FunctionDeclaration);
     }
@@ -199,7 +199,7 @@ export class VariableDeclaration extends Node {
     public constructor(
         span: Span,
         public readonly name: Identifier,
-        public readonly type: TypeAnnotation | null,
+        public readonly type: TypeAnnotation | undefined,
         public readonly isMutable: boolean,
         public readonly init: ExpressionNode,
     ) {
@@ -378,11 +378,20 @@ export class MatchExpression extends Node {
     }
 }
 
+type VariantPayload = Identifier[] | undefined;
+
+export class EnumVariant {
+    constructor(
+        public readonly name: Identifier,
+        public readonly payload: VariantPayload,
+    ) {}
+}
+
 export class EnumDeclaration extends Node {
     public constructor(
         span: Span,
         public readonly name: Identifier,
-        public readonly symbols: Identifier[],
+        public readonly variants: EnumVariant[],
         public readonly modifiers: Identifier[],
     ) {
         super(span, NodeType.EnumDeclaration);

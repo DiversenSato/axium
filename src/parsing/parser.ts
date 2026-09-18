@@ -6,6 +6,7 @@ import {
     CallExpression,
     ContinueStatement,
     EnumDeclaration,
+    EnumVariant,
     ExpressionStatement,
     FunctionDeclaration,
     Identifier,
@@ -218,12 +219,14 @@ export class Parser {
 
         this.expect(TokenKind.OpenBrace);
         const members: StructMember[] = [];
-        while (true) {
+        while (!this.match(TokenKind.CloseBrace)) {
             if (this.match(TokenKind.Identifier, 'static')) {
                 this.advance();
                 members.push(new StructMethod(this.functionDeclaration(), true));
+                continue;
             } else if (this.match(TokenKind.Identifier, 'fn')) {
                 members.push(new StructMethod(this.functionDeclaration()));
+                continue;
             } else {
                 const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
                 this.expect(TokenKind.Colon);
@@ -232,8 +235,8 @@ export class Parser {
                 members.push(new StructField(Span.fromEnclosing(name.span, type.span), name, type));
             }
 
-            this.expect(TokenKind.Comma);
-            if (this.match(TokenKind.CloseBrace)) break;
+            if (this.match(TokenKind.Semi)) this.expect(TokenKind.Semi);
+            else break;
         }
         const endSpan = this.expect(TokenKind.CloseBrace).span;
 
@@ -246,15 +249,32 @@ export class Parser {
         const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
 
         this.expect(TokenKind.OpenBrace);
-        const symbols: Identifier[] = [];
-        while (true) {
-            symbols.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
-            this.expect(TokenKind.Comma);
-            if (this.match(TokenKind.CloseBrace)) break;
+        const variants: EnumVariant[] = [];
+        while (!this.match(TokenKind.CloseBrace)) {
+            const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
+
+            if (this.match(TokenKind.OpenParen)) {
+                this.advance();
+
+                const tupleItems: Identifier[] = [];
+                while (!this.match(TokenKind.CloseParen)) {
+                    tupleItems.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
+                    if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
+                    else break;
+                }
+
+                variants.push(new EnumVariant(name, tupleItems));
+                this.expect(TokenKind.CloseParen);
+            } else {
+                variants.push(new EnumVariant(name, undefined));
+            }
+
+            if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
+            else break;
         }
         const endSpan = this.expect(TokenKind.CloseBrace).span;
 
-        return new EnumDeclaration(Span.fromEnclosing(startSpan, endSpan), name, symbols, modifiers);
+        return new EnumDeclaration(Span.fromEnclosing(startSpan, endSpan), name, variants, modifiers);
     }
 
     private matchExpression(): MatchExpression {
@@ -378,17 +398,15 @@ export class Parser {
         this.expect(TokenKind.OpenParen);
 
         const parameters: Parameter[] = [];
-        if (this.match(TokenKind.Identifier) || this.match(TokenKind.OpenBracket)) {
-            // Arguments
-            while (true) {
-                const type = this.typeAnnotation();
-                const name = this.expect(TokenKind.Identifier);
-                parameters.push(new Parameter(type, Identifier.fromToken(name)));
-                if (this.match(TokenKind.CloseParen)) break;
-                this.expect(TokenKind.Comma);
-            }
-        }
+        // Arguments
+        while (!this.match(TokenKind.CloseParen)) {
+            const type = this.typeAnnotation();
+            const name = this.expect(TokenKind.Identifier);
+            parameters.push(new Parameter(type, Identifier.fromToken(name)));
 
+            if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
+            else break;
+        }
         this.expect(TokenKind.CloseParen);
 
         let type: Identifier | null = null;
@@ -419,7 +437,7 @@ export class Parser {
         }
 
         const functionName = this.expect(TokenKind.Identifier);
-        let type: TypeAnnotation | null = null;
+        let type: TypeAnnotation | undefined = undefined;
         if (this.match(TokenKind.Colon)) {
             this.expect(TokenKind.Colon);
             type = this.typeAnnotation();

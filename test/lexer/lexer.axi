@@ -24,20 +24,21 @@ export enum TokenKind {
     Arrow,
     Question,
 
-    Plus,
-    Dash,
-    Star,
-    ForwardSlash,
-    Equals,
-    DoubleEquals,
-    NotEquals,
-    LessThan,
-    LessThanEquals,
-    GreaterThan,
-    GreaterThanEquals,
-    Exclamation,
-    Pipe,
-    DoublePipe,
+    Plus, // +
+    Dash, // -
+    Star, // *
+    ForwardSlash, // /
+    Equals, // =
+    DoubleEquals, // ==
+    NotEquals, // !=
+    Increment, // +=
+    LessThan, // <
+    LessThanEquals, // <=
+    GreaterThan, // >
+    GreaterThanEquals, // >=
+    Exclamation, // !
+    Pipe, // |
+    DoublePipe, // |
 
     Ampersand,
     And,
@@ -47,9 +48,9 @@ export enum TokenKind {
 }
 
 export struct Token {
-    kind: TokenKind,
-    span: Span,
-    value: string,
+    kind: TokenKind;
+    span: Span;
+    value: string;
 }
 
 fn isIdentifierStart(u8 c) {
@@ -83,9 +84,9 @@ fn isDigit(u8 c) {
 }
 
 export struct Lexer {
-    position: u32,
-    source: string,
-    sourceId: i32,
+    position: u32;
+    source: string;
+    sourceId: i32;
 
     static fn from(SourceFile file) {
         return Lexer {
@@ -93,29 +94,29 @@ export struct Lexer {
             source: file.content,
             sourceId: addFile(file.name, file.content),
         };
-    },
+    }
 
     fn peek(i32 offset) {
         if (!offset) offset = 0;
         return this.source.at(this.position + offset);
-    },
+    }
 
     fn advance(): string {
         let next = this.source.at(this.position);
         this.position = this.position + 1;
         if (next == undefined) return Error("unexpected end of input");
         return next;
-    },
+    }
 
     fn match(u8 c) {
         let char = this.peek();
         if (char == undefined) return false;
         return char == c;
-    },
+    }
 
     fn hasNext() {
         return this.peek() != undefined;
-    },
+    }
 
     fn nextToken() {
         if (this.peek() == undefined) {
@@ -137,7 +138,7 @@ export struct Lexer {
             value: this.source.slice(start, this.position),
         };
         return token;
-    },
+    }
 
     fn getTokenKind(u8 char) {
         if (char == '/' && this.peek() == '/') return this.lineComment();
@@ -162,7 +163,13 @@ export struct Lexer {
         if (char == '[') return TokenKind.OpenBracket;
         if (char == ']') return TokenKind.CloseBracket;
 
-        if (char == '+') return TokenKind.Plus;
+        if (char == '+') {
+            if (this.peek() == '=') {
+                this.advance();
+                return TokenKind.Increment;
+            }
+            return TokenKind.Plus;
+        }
         if (char == '-') return TokenKind.Dash;
         if (char == '*') return TokenKind.Star;
         if (char == '/') return TokenKind.ForwardSlash;
@@ -219,12 +226,12 @@ export struct Lexer {
         if (isDigit(char)) return this.numberLiteral();
 
         return TokenKind.Unknown;
-    },
+    }
 
     fn lineComment(): TokenKind {
         while (this.peek() != '\n') this.advance();
         return TokenKind.LineComment;
-    },
+    }
 
     fn blockComment(): TokenKind {
         this.advance();
@@ -234,14 +241,14 @@ export struct Lexer {
         this.advance();
         this.advance();
         return TokenKind.BlockComment;
-    },
+    }
 
     fn whitespace(): TokenKind {
         while (this.peek() != undefined && isWhitespace(this.peek())) {
             this.advance();
         }
         return TokenKind.Whitespace;
-    },
+    }
 
     fn identifier(u8 firstChar): TokenKind {
         let chars = [firstChar];
@@ -249,7 +256,7 @@ export struct Lexer {
             chars.push(this.advance());
         }
         return TokenKind.Identifier;
-    },
+    }
 
     fn stringLiteral(): TokenKind {
         while (this.peek() != '\n') {
@@ -262,7 +269,7 @@ export struct Lexer {
         }
 
         return Error("unterminated string literal");
-    },
+    }
 
     fn charLiteral(): TokenKind {
         let c = this.advance();
@@ -275,7 +282,7 @@ export struct Lexer {
         if (end != '\'') return Error("unterminated character literal");
 
         return TokenKind.CharLiteral;
-    },
+    }
 
     fn numberLiteral(): TokenKind {
         loop {
@@ -286,5 +293,5 @@ export struct Lexer {
             else break;
         }
         return TokenKind.NumberLiteral;
-    },
+    }
 }

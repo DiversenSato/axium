@@ -36,10 +36,10 @@ export enum NodeType {
 }
 
 export struct Span {
-    start: u32,
-    end: u32,
-    len: u32,
-    parent: i32,
+    start: u32;
+    end: u32;
+    len: u32;
+    parent: i32;
 
     static fn from(u32 start, u32 end, i32 parent) {
         return Span {
@@ -48,19 +48,19 @@ export struct Span {
             len: end - start,
             parent,
         };
-    },
+    }
 
     static fn fromEnclosing(Span start, Span end) {
         return Span.from(start.start, end.end, start.parent);
-    },
+    }
 }
 
 static mut counter: u32 = 0;
 
 export struct Node {
-    id: u32,
-    span: Span,
-    nodeType: NodeType,
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
 
     static fn from(Span span, NodeType nodeType) {
         let id = counter;
@@ -70,388 +70,472 @@ export struct Node {
             span,
             nodeType,
         };
-    },
-}
-
-export struct Identifier extends Node {
-    fn from(
-        span: Span,
-        public readonly value: string,
-    ) {
-        super(span, NodeType.Identifier);
-        counter = counter + 1;
-    },
-
-    public static fromToken(token: Token): Identifier {
-        return new Identifier(token.span, token.value);
     }
 }
 
-export struct Program extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: string,
-        public statements: Node[],
+export struct Identifier {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+
+    value: string;
+
+    static fn from(
+        Span span,
+        string value,
     ) {
-        super(span, NodeType.Program);
+        counter += 1;
+        return Identifier {
+            id: counter,
+            span,
+            nodeType: NodeType.Identifier,
+            value,
+        };
+    }
+
+    static fn fromToken(Token token): Identifier {
+        return Identifier.from(token.span, token.value);
     }
 }
 
-export struct ImportDeclaration extends Node {
-    public constructor(
-        span: Span,
-        public readonly module: Identifier[],
-        public readonly items: Identifier[],
+export struct Program {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+    name: string;
+    statements: [Node];
+
+    static fn from(
+        Span span,
+        string name,
+        [Node] statements,
     ) {
-        super(span, NodeType.ImportDeclaration);
+        counter += 1;
+        return Program {
+            id: counter,
+            span,
+            nodeType: NodeType.Program,
+            name,
+            statements,
+        };
     }
 }
 
-export struct TypeAnnotation extends Node {
-    public constructor(
-        span: Span,
-        public readonly type: Identifier,
-        public readonly parameters: TypeAnnotation[],
-        public readonly isArray: boolean,
+export struct ImportDeclaration {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+    module: [Identifier];
+    items: [Identifier];
+
+    static fn from(
+        Span span,
+        [Identifier] module,
+        [Identifier] items,
+    ) {
+        counter += 1;
+        return ImportDeclaration {
+            id: counter,
+            span,
+            nodeType: NodeType.ImportDeclaration,
+            module,
+            items,
+        };
+    }
+}
+
+export struct TypeAnnotation {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+    type: Identifier;
+    parameters: [TypeAnnotation];
+    isArray: bool;
+
+    static fn from(
+        Span span,
+        Identifier type,
+        [TypeAnnotation] parameters,
+        bool isArray,
     ) {
         super(span, NodeType.TypeAnnotation);
+        counter += 1;
+        return TypeAnnotation {
+            id: counter,
+            span,
+            nodeType: NodeType.TypeAnnotation,
+            type,
+            parameters,
+            isArray,
+        };
     }
 }
 
-export struct Parameter extends Node {
-    public constructor(
-        public readonly type: TypeAnnotation,
-        public readonly name: Identifier,
+export struct Parameter {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+    type: TypeAnnotation;
+    name: Identifier;
+
+    static fn from(
+        TypeAnnotation type,
+        Identifier name,
     ) {
-        super(Span.fromEnclosing(type.span, name.span), NodeType.Parameter);
+        counter += 1;
+        return Parameter {
+            id: counter,
+            span: Span.fromEnclosing(type.span, name.span),
+            nodeType: NodeType.Parameter,
+            type,
+            name,
+        };
     }
 }
 
-export struct BlockStatement extends Node {
-    constructor(
-        span: Span,
-        public readonly statements: Node[],
+export struct BlockStatement {
+    id: u32;
+    span: Span;
+    nodeType: NodeType;
+
+    static fn from(
+        Span span,
+        [Node] statements,
     ) {
         super(span, NodeType.BlockStatement);
     }
 }
 
-export struct FunctionDeclaration extends Node {
-    public constructor(
-        startSpan: Span,
-        public readonly name: Identifier,
-        public readonly type: Identifier | null,
-        public readonly parameters: Parameter[] = [],
-        public readonly block: BlockStatement,
-        public readonly modifiers: Identifier[] = [],
+enum FunctionReturnType {
+    Default(Span),
+    Type(TypeAnnotation),
+}
+
+export struct FunctionSignature {
+    inputs: [Param];
+    output: FunctionReturnType;
+}
+
+export struct FunctionDeclaration {
+    static fn from(
+        startSpan span,
+        Identifier name,
+        Identifier type,
+        [Parameter] parameters,
+        BlockStatement block,
+        [Identifier] modifiers,
     ) {
         super(Span.fromEnclosing(startSpan, block.span), NodeType.FunctionDeclaration);
     }
 }
 
-export struct IfStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly condition: ExpressionNode,
-        public readonly block: BlockStatement,
-        public readonly alternate?: Node,
+export struct IfStatement {
+    static fn from(
+        Span span,
+        ExpressionNode condition,
+        BlockStatement block,
+        Node alternate,
     ) {
         super(span, NodeType.IfStatement);
     }
 }
 
-export struct WhileStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly condition: ExpressionNode,
-        public readonly block: BlockStatement,
+export struct WhileStatement {
+    static fn from(
+        Span span,
+        ExpressionNode condition,
+        BlockStatement block,
     ) {
         super(span, NodeType.WhileStatement);
     }
 }
 
-export struct LoopStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly block: BlockStatement,
+export struct LoopStatement {
+    static fn from(
+        Span span,
+        BlockStatement block,
     ) {
         super(span, NodeType.LoopStatement);
     }
 }
 
-export struct ReturnStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly expression?: ExpressionNode,
+export struct ReturnStatement {
+    static fn from(
+        Span span,
+        ExpressionNode expression,
     ) {
         super(span, NodeType.ReturnStatement);
     }
 }
 
-export struct ThrowStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly expression: ExpressionNode,
+export struct ThrowStatement {
+    static fn from(
+        Span span,
+        ExpressionNode expression,
     ) {
         super(span, NodeType.ThrowStatement);
     }
 }
 
-export struct ContinueStatement extends Node {
-    public constructor(span: Span) {
+export struct ContinueStatement {
+    static fn from(Span span) {
         super(span, NodeType.ContinueStatement);
     }
 }
 
-export struct VariableDeclaration extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly type: TypeAnnotation | null,
-        public readonly isMutable: boolean,
-        public readonly init: ExpressionNode,
+export struct VariableDeclaration {
+    static fn from(
+        Span span,
+        Identifier name,
+        TypeAnnotation type,
+        boolean isMutable,
+        ExpressionNode init,
     ) {
         super(span, NodeType.VariableDeclaration);
     }
 }
 
-export struct StaticVariableDeclaration extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly type: TypeAnnotation,
-        public readonly isMutable: boolean,
-        public readonly init: ExpressionNode,
-        public readonly modifiers: Identifier[],
+export struct StaticVariableDeclaration {
+    static fn from(
+        Span span,
+        Identifier name,
+        TypeAnnotation type,
+        boolean isMutable,
+        ExpressionNode init,
+        [Identifier] modifiers,
     ) {
         super(span, NodeType.StaticVariableDeclaration);
     }
 }
 
-export struct AssignmentNode extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly right: ExpressionNode,
+export struct AssignmentNode {
+    static fn from(
+        Span span,
+        Identifier name,
+        ExpressionNode right,
     ) {
         super(span, NodeType.AssignmentNode);
     }
 }
 
-export struct ExpressionStatement extends Node {
-    public constructor(
-        span: Span,
-        public readonly expression: ExpressionNode,
+export struct ExpressionStatement {
+    static fn from(
+        Span span,
+        ExpressionNode expression,
     ) {
         super(span, NodeType.ExpressionStatement);
     }
 }
 
-export struct NumberLiteral extends Node {
-    public constructor(
-        span: Span,
-        public readonly value: number,
+export struct NumberLiteral {
+    static fn from(
+        Span span,
+        number value,
     ) {
         super(span, NodeType.NumberLiteral);
-        Node.counter++;
+        Node.counter += 1;
     }
 
-    public static fromToken(token: Token): NumberLiteral {
-        return new NumberLiteral(token.span, parseFloat(token.value));
+    static fn fromToken(Token token): NumberLiteral {
+        return NumberLiteral.from(token.span, parseFloat(token.value));
     }
 }
 
-export struct CharLiteral extends Node {
-    public constructor(
-        span: Span,
-        public readonly value: string,
+export struct CharLiteral {
+    static fn from(
+        Span span,
+        string value,
     ) {
         super(span, NodeType.CharLiteral);
-        Node.counter++;
+        Node.counter += 1;
     }
 
-    public static fromToken(token: Token): CharLiteral {
-        return new CharLiteral(token.span, token.value);
+    static fn fromToken(Token token): CharLiteral {
+        return CharLiteral.from(token.span, token.value);
     }
 }
 
-export struct StringLiteral extends Node {
-    public constructor(
-        span: Span,
-        public readonly value: string,
+export struct StringLiteral {
+    static fn from(
+        Span span,
+        string value,
     ) {
         super(span, NodeType.StringLiteral);
-        Node.counter++;
+        Node.counter += 1;
     }
 
-    public static fromToken(token: Token): StringLiteral {
-        return new StringLiteral(token.span, token.value);
+    static fn fromToken(Token token): StringLiteral {
+        return StringLiteral.from(token.span, token.value);
     }
 }
 
-export struct ArrayLiteral extends Node {
-    public constructor(
-        span: Span,
-        public readonly values: ExpressionNode[],
+export struct ArrayLiteral {
+    static fn from(
+        Span span,
+        [ExpressionNode] values,
     ) {
         super(span, NodeType.ArrayLiteral);
     }
 }
 
-export struct ObjectLiteral extends Node {
-    public constructor(
-        span: Span,
-        public readonly values: Record<string, ExpressionNode | null>,
+export struct ObjectLiteral {
+    static fn from(
+        Span span,
+        Record values, // values: Record<string, ExpressionNode | null>
     ) {
         super(span, NodeType.ArrayLiteral);
     }
 }
 
-export struct Ternary extends Node {
-    public constructor(
-        span: Span,
-        public readonly condition: ExpressionNode,
-        public readonly success: ExpressionNode,
-        public readonly failure: ExpressionNode,
+export struct Ternary {
+    static fn from(
+        Span span,
+        ExpressionNode condition,
+        ExpressionNode success,
+        ExpressionNode failure,
     ) {
         super(span, NodeType.Ternary);
     }
 }
 
-export struct Lambda extends Node {
-    public constructor(
-        span: Span,
-        public readonly parameters: Identifier[],
-        public readonly expression: ExpressionNode,
+export struct Lambda {
+    static fn from(
+        Span span,
+        [Identifier] parameters,
+        ExpressionNode expression,
     ) {
         super(span, NodeType.Lambda);
     }
 }
 
-export struct UnaryExpression extends Node {
-    public constructor(
-        public readonly operator: string,
-        public readonly operand: ExpressionNode,
+export struct UnaryExpression {
+    static fn from(
+        string operator,
+        ExpressionNode operand,
     ) {
         super(operand.span, NodeType.UnaryExpression);
     }
 }
 
-export struct BinaryExpression extends Node {
-    public constructor(
-        public readonly operator: string,
-        public readonly left: ExpressionNode,
-        public readonly right: ExpressionNode,
+export struct BinaryExpression {
+    static fn from(
+        string operator,
+        ExpressionNode left,
+        ExpressionNode right,
     ) {
         super(Span.fromEnclosing(left.span, right.span), NodeType.BinaryExpression);
     }
 }
 
-export struct CallExpression extends Node {
-    public constructor(
-        public readonly caller: ExpressionNode,
-        public readonly args: ExpressionNode[],
+export struct CallExpression {
+    static fn from(
+        ExpressionNode caller,
+        [ExpressionNode] args,
     ) {
-        super(Span.fromEnclosing(caller.span, (args.at(-1) ?? caller).span), NodeType.CallExpression);
+        super(Span.fromEnclosing(caller.span, (args.at(-1) ? args.at(-1) : caller).span), NodeType.CallExpression);
     }
 }
 
-export struct MemberExpression extends Node {
-    public constructor(
-        public readonly parent: ExpressionNode,
-        public readonly property: ExpressionNode,
-        public readonly computed = false,
+export struct MemberExpression {
+    static fn from(
+        ExpressionNode parent,
+        ExpressionNode property,
+        bool computed,
     ) {
         super(Span.fromEnclosing(parent.span, property.span), NodeType.MemberExpression);
     }
 }
 
-export struct MatchExpressionBranch extends Node {
-    public constructor(
-        span: Span,
-        public readonly left: NumberLiteral | StringLiteral | Identifier,
-        public readonly right: ExpressionNode,
+export struct MatchExpressionBranch {
+    static fn from(
+        Span span,
+        Literal left, // left: NumberLiteral | StringLiteral | Identifier,
+        ExpressionNode right,
     ) {
         super(span, NodeType.MatchExpressionBranch);
     }
 }
 
-export struct MatchExpression extends Node {
-    public constructor(
-        span: Span,
-        public readonly expression: ExpressionNode,
-        public readonly branches: MatchExpressionBranch[],
+export struct MatchExpression {
+    static fn from(
+        Span span,
+        ExpressionNode expression,
+        [MatchExpressionBranch] branches,
     ) {
         super(span, NodeType.MatchExpression);
     }
 }
 
-export struct EnumDeclaration extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly symbols: Identifier[],
-        public readonly modifiers: Identifier[],
+export struct EnumDeclaration {
+    static fn from(
+        Span span,
+        Identifier name,
+        [Identifier] symbols,
+        [Identifier] modifiers,
     ) {
         super(span, NodeType.EnumDeclaration);
     }
 }
 
-export struct StructField extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly type: TypeAnnotation,
+export struct StructField {
+    static fn from(
+        Span span,
+        Identifier name,
+        TypeAnnotation type,
     ) {
         super(span, NodeType.StructMember);
     }
 }
 
-export struct StructMethod extends Node {
-    public constructor(
-        public readonly method: FunctionDeclaration,
-        public readonly isStatic = false,
+export struct StructMethod {
+    static fn from(
+        FunctionDeclaration method,
+        bool isStatic,
     ) {
         super(method.span, NodeType.StructMethod);
     }
 }
 
-export type StructMember = StructField | StructMethod;
+// export type StructMember = StructField | StructMethod;
+export enum StructMemberKind {
+    Field,
+    Method,
+}
 
-export struct StructDeclaration extends Node {
-    public constructor(
-        span: Span,
-        public readonly name: Identifier,
-        public readonly members: StructMember[],
-        public readonly modifiers: Identifier[],
+export struct StructDeclaration {
+    static fn from(
+        Span span,
+        Identifier name,
+        [StructMember] members,
+        [Identifier] modifiers,
     ) {
         super(span, NodeType.StructDeclaration);
     }
 }
 
-export struct StructKeyValuePair extends Node {
-    public constructor(
-        span: Span,
-        public readonly property: Identifier,
-        public readonly value: ExpressionNode,
+export struct StructKeyValuePair {
+    static fn from(
+        Span span,
+        Identifier property,
+        ExpressionNode value,
     ) {
         super(span, NodeType.StructKeyValuePair);
     }
 }
 
-export struct StructMemberBlock extends Node {
-    public constructor(
-        span: Span,
-        public readonly values: StructKeyValuePair[],
+export struct StructMemberBlock {
+    static fn from(
+        Span span,
+        [StructKeyValuePair] values,
     ) {
         super(span, NodeType.StructMemberBlock);
     }
 }
 
-export struct StructInstantiationExpression extends Node {
-    public constructor(
-        public readonly struct: Identifier,
-        public readonly values: StructMemberBlock,
+export struct StructInstantiationExpression {
+    static fn from(
+        Identifier struct,
+        StructMemberBlock values,
     ) {
         super(Span.fromEnclosing(struct.span, values.span), NodeType.StructInstantiationExpression);
     }

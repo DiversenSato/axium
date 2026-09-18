@@ -1,7 +1,7 @@
 import self::ast::ast::{NodeType};
 
 struct Options {
-    verbose: boolean,
+    verbose: boolean;
 }
 
 export fn generator(Node node, Options options, u32 indent, u32 scope): string {

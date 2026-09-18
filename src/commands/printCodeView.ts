@@ -15,7 +15,7 @@ export function printCodeView(span: Span) {
     console.log(
         gutterSpacing +
             chalk.blue('╭─[') +
-            chalk.greenBright('./' + source.name) +
+            chalk.greenBright(source.name) +
             `:${location.line + 1}:${location.column + 1}` +
             chalk.blue(']'),
     );

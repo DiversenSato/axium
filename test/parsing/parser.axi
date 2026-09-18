@@ -50,10 +50,10 @@ fn SyntaxError(string message) {
 }
 
 export struct Parser {
-    index: u32,
-    position: u32,
-    sourceId: i32,
-    tokens: [Token],
+    index: u32;
+    position: u32;
+    sourceId: i32;
+    tokens: [Token];
 
     static fn from(SourceFile source) {
         let lexer = Lexer.from(source);
@@ -74,12 +74,12 @@ export struct Parser {
             tokens,
             sourceId: getSourceId(source.name),
         };
-    },
+    }
 
     fn peek(i32 offset) {
         if (!offset) offset = 0;
         return this.tokens.at(this.index + offset);
-    },
+    }
 
     fn advance(): Token {
         this.index = this.index + 1;
@@ -87,7 +87,7 @@ export struct Parser {
         if (!token) return SyntaxError("Unexpected end of input");
         this.position = this.position + token.span.len;
         return token;
-    },
+    }
 
     fn expect(TokenKind type, string expectedValue): Token {
         let token = this.advance();
@@ -97,7 +97,7 @@ export struct Parser {
         if (expectedValue && token.value != expectedValue)
             return SyntaxError("Expected: '" + expectedValue + "', found: '" + token.value + "'", token.span);
         return token;
-    },
+    }
 
     fn match(TokenKind type, string expectedValue): boolean {
         let token = this.peek();
@@ -105,7 +105,7 @@ export struct Parser {
         if (token.kind != type) return false;
         if (token.value != expectedValue) return false;
         return true;
-    },
+    }
 
     fn parseProgram(string name) {
         let statements = [];
@@ -122,7 +122,7 @@ export struct Parser {
             name: name,
             statements: statements,
         };
-    },
+    }
 
     fn topLevelStatement(): Node {
         //console.log('topLevelStatement');
@@ -140,7 +140,7 @@ export struct Parser {
 
         let token = this.advance();
         return Error("unknown token", token.span);
-    },
+    }
 
     fn importStatement(): Node {
         let startSpan = this.expect(TokenKind.Identifier, "import").span;
@@ -168,5 +168,5 @@ export struct Parser {
         let endSpan = this.expect(TokenKind.Semi).span;
 
         return ImportDeclaration.from(Span.fromEnclosing(startSpan, endSpan), identifiers, items);
-    },
+    }
 }
