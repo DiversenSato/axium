@@ -310,8 +310,7 @@ export class Parser {
             throw new SyntaxError('Unknown token in match branch', token.span);
         }
 
-        this.expect(TokenKind.Equals);
-        this.expect(TokenKind.GreaterThan);
+        this.expect(TokenKind.Arrow);
 
         const expression = this.expression();
         const endSpan = this.expect(TokenKind.Comma).span;

@@ -22,7 +22,7 @@ export enum TokenKind {
     CloseBrace,
     OpenBracket,
     CloseBracket,
-    Arrow,
+    Arrow, // =>
     Question,
 
     Plus, // +

@@ -19,25 +19,40 @@ import {
     VariableDeclaration,
     WhileStatement,
     type Node,
+    EnumVariant,
 } from '../ast/ast.js';
 
+export class Scope {
+    private readonly symbols: [string, string][] = [];
+
+    getSymbol(identifier: string) {
+        return this.symbols.find(([symbol]) => symbol === identifier)?.[1];
+    }
+}
+
 export class Walker {
-    public constructor(private readonly onVisit: (node: Node) => void) {}
+    private readonly scopeStack = [new Scope()];
+
+    public constructor(private readonly onVisit: (node: Node, scope: Scope) => void) {}
 
     public walk(node: Node): void {
-        this.onVisit(node);
+        this.onVisit(node, this.scopeStack.at(-1)!);
 
         if (node instanceof Program) {
-            for (const child of node.statements) {
+            for (const child of node.items) {
+                this.scopeStack.push(new Scope());
                 this.walk(child);
+                this.scopeStack.pop();
             }
         } else if (node instanceof Parameter) {
             this.walk(node.type);
             this.walk(node.name);
         } else if (node instanceof BlockStatement) {
+            this.scopeStack.push(new Scope());
             for (const child of node.statements) {
                 this.walk(child);
             }
+            this.scopeStack.pop();
         } else if (node instanceof FunctionDeclaration) {
             for (const child of node.modifiers) {
                 this.walk(child);
@@ -64,7 +79,7 @@ export class Walker {
             this.walk(node.expression);
         } else if (node instanceof VariableDeclaration) {
             this.walk(node.name);
-            if (node.type !== null) {
+            if (node.type) {
                 this.walk(node.type);
             }
             this.walk(node.init);
@@ -96,6 +111,12 @@ export class Walker {
             this.walk(node.right);
         } else if (node instanceof EnumDeclaration) {
             this.walk(node.name);
+            for (const variant of node.variants) this.walkEnumVariant(variant);
         }
+    }
+
+    private walkEnumVariant(variant: EnumVariant) {
+        this.walk(variant.name);
+        if (variant.payload) for (const p of variant.payload) this.walk(p);
     }
 }

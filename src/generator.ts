@@ -40,47 +40,43 @@ interface Options {
     verbose: boolean;
 }
 
-const INDENT_INCREMENT = 4;
-
-export function generator(node: Node, options: Options, indent = 0, scope = 0): string {
+export function generator(node: Node, options: Options): string {
     if (node instanceof Program) {
-        let compiled = 'function Error(msg) { throw msg; }\n';
-        for (const child of node.statements) {
-            compiled += generator(child, options);
+        let compiled = 'function Error(msg){throw msg};';
+        for (const child of node.items) {
+            compiled += generator(child, options) + ';';
         }
-        return compiled + '\n';
+        return compiled;
     }
-
-    const indentString = ' '.repeat(indent);
 
     if (node instanceof ImportDeclaration) {
         if (node.items.length === 0)
-            return `import * as ${node.module.at(-1)!.value} from '${node.module.map((m) => (m.value === 'super' ? '..' : m.value === 'self' ? '.' : m.value)).join('/')}';\n`;
+            return `import*as ${node.module.at(-1)!.value} from'${node.module.map((m) => (m.value === 'super' ? '..' : m.value === 'self' ? '.' : m.value)).join('/')}'`;
 
-        return `import { ${node.items.map((i) => i.value).join(', ')} } from '${node.module.map((m) => (m.value === 'super' ? '..' : m.value === 'self' ? '.' : m.value)).join('/')}';\n`;
+        return `import{${node.items.map((i) => i.value).join(',')}}from'${node.module.map((m) => (m.value === 'super' ? '..' : m.value === 'self' ? '.' : m.value)).join('/')}'`;
     }
 
     if (node instanceof BlockStatement) {
-        return genBlockStatement(node, options, indent, scope);
+        return genBlockStatement(node, options);
     }
 
     if (node instanceof FunctionDeclaration) {
         return (
             genItemModifers(node.modifiers) +
-            `function ${generator(node.name, options)}(${node.parameters.map((p) => generator(p, options)).join(', ')}) ${generator(node.block, options, indent, scope)}`
+            `function ${generator(node.name, options)}(${node.parameters.map((p) => generator(p, options)).join(',')})${generator(node.block, options)}`
         );
     }
 
     if (node instanceof IfStatement) {
-        return genIf(node, options, indent, scope);
+        return genIf(node, options);
     }
 
     if (node instanceof WhileStatement) {
-        return `${indentString}while (${generator(node.condition, options)}) ${generator(node.block, options, indent, scope)}`;
+        return `while(${generator(node.condition, options)})${generator(node.block, options)}`;
     }
 
     if (node instanceof LoopStatement) {
-        return `${indentString}while (true) ${generator(node.block, options, indent, scope)}`;
+        return `while(true)${generator(node.block, options)}`;
     }
 
     if (node instanceof Parameter) {
@@ -88,15 +84,15 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     }
 
     if (node instanceof AssignmentNode) {
-        return indentString + `${generator(node.name, options)} = ${generator(node.right, options)};\n`;
+        return `${generator(node.name, options)}=${generator(node.right, options)}`;
     }
 
     if (node instanceof VariableDeclaration) {
-        return `${indentString}${node.isMutable ? 'let' : 'const'} ${generator(node.name, options)} = ${generator(node.init, options, 0, scope)};`;
+        return `${node.isMutable ? 'let' : 'const'} ${node.name.value}=${generator(node.init, options)}`;
     }
 
     if (node instanceof StaticVariableDeclaration) {
-        return `${node.isMutable ? 'let' : 'const'} ${node.name.value} = ${generator(node.init, options, 0, 0)};\n`;
+        return `${node.isMutable ? 'let' : 'const'} ${node.name.value}=${generator(node.init, options)}`;
     }
 
     if (node instanceof NumberLiteral) {
@@ -107,7 +103,7 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     if (node instanceof StringLiteral) return node.value;
 
     if (node instanceof ArrayLiteral) {
-        return `[${node.values.map((v) => generator(v, options)).join(', ')}]`;
+        return `[${node.values.map((v) => generator(v, options)).join(',')}]`;
     }
 
     if (node instanceof ObjectLiteral) {
@@ -115,14 +111,11 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     }
 
     if (node instanceof CallExpression) {
-        return (
-            indentString +
-            `${generator(node.caller, options)}(${node.args.map((a) => generator(a, options, 0, scope)).join(', ')})`
-        );
+        return `${generator(node.caller, options)}(${node.args.map((a) => generator(a, options)).join(',')})`;
     }
 
     if (node instanceof ExpressionStatement) {
-        return indentString + generator(node.expression, options, 0, scope + 1) + ';\n';
+        return generator(node.expression, options);
     }
 
     if (node instanceof MemberExpression) {
@@ -131,7 +124,7 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     }
 
     if (node instanceof Identifier) {
-        if (node.value === 'None') return 'null';
+        // if (node.value === 'None') return 'null';
         return node.value;
     }
 
@@ -144,33 +137,32 @@ export function generator(node: Node, options: Options, indent = 0, scope = 0): 
     }
 
     if (node instanceof ContinueStatement) {
-        return `${indentString}continue;\n`;
+        return `continue`;
     }
 
     if (node instanceof ReturnStatement) {
-        if (node.expression === undefined) return `${indentString}return;`;
-        return `${indentString}return ${generator(node.expression, options, 0, scope)};\n`;
+        if (node.expression === undefined) return `return`;
+        return `return ${generator(node.expression, options)}`;
     }
 
     if (node instanceof ThrowStatement) {
-        return `${indentString}throw ${generator(node.expression, options)};\n`;
+        return `throw ${generator(node.expression, options)}`;
     }
 
     if (node instanceof MatchExpression) {
         return `(() => {
-${node.branches.map((b) => `${indentString}    ${b.left.value !== '_' ? `if (${generator(node.expression, options)} === ${generator(b.left, options)}) ` : ''}return ${generator(b.right, options)};`).join('\n')}
-${indentString}})()`;
+${node.branches.map((b) => `${b.left.value !== '_' ? `if (${generator(node.expression, options)} === ${generator(b.left, options)}) ` : ''}return ${generator(b.right, options)};`).join('\n')}})()`;
     }
 
     if (node instanceof EnumDeclaration) {
-        return `${genItemModifers(node.modifiers)}const ${generator(node.name, options)} = {
-${node.variants.map((s, i) => `    ${genEnumVariant(s)}: ${i},`).join('\n')}
-};\n`;
+        return `${genItemModifers(node.modifiers)}const ${generator(node.name, options)}={${node.variants
+            .map((s, i) => `${genEnumVariant(s)}:${i}`)
+            .join(',')}}`;
     }
 
     if (node instanceof StructDeclaration) return genStructDeclaration(node, options);
 
-    if (node instanceof StructInstantiationExpression) return genStructInstantiation(node, options, scope + 1);
+    if (node instanceof StructInstantiationExpression) return genStructInstantiation(node, options);
 
     if (node instanceof Ternary) {
         return (
@@ -195,15 +187,11 @@ function genEnumVariant(variant: EnumVariant) {
     return variant.name.value;
 }
 
-function indentString(indent: number): string {
-    return ' '.repeat(indent);
-}
-
-function genStructInstantiation(node: StructInstantiationExpression, options: Options, scope: number): string {
+function genStructInstantiation(node: StructInstantiationExpression, options: Options): string {
     if (node.values.values.length === 0) return `new ${node.struct.value};`;
-    return `new ${node.struct.value}({
-${node.values.values.map((v) => `${indentString(scope * INDENT_INCREMENT) + v.property.value}: ${generator(v.value, options)},`).join('\n')}
-${indentString((scope - 1) * INDENT_INCREMENT)}})`;
+    return `new ${node.struct.value}({${node.values.values
+        .map((v) => `${v.property.value}:${generator(v.value, options)}`)
+        .join(',')}})`;
 }
 
 function genItemModifers(modifiers: Identifier[]) {
@@ -211,49 +199,34 @@ function genItemModifers(modifiers: Identifier[]) {
 }
 
 function genStructDeclaration(node: StructDeclaration, options: Options): string {
-    return `${genItemModifers(node.modifiers)}class ${generator(node.name, options)} {
-    constructor(options) {
-${node.members
-    .filter((m) => m instanceof StructField)
-    .map((m) => `        this.${m.name.value} = options.${m.name.value};`)
-    .join('\n')}
-    }
-${node.members
-    .filter((m) => m instanceof StructMethod)
-    .map((m) => genStructMethod(m, options))
-    .join('\n')}}\n`;
+    return `${genItemModifers(node.modifiers)}class ${generator(node.name, options)}{constructor(options){${node.members
+        .filter((m) => m instanceof StructField)
+        .map((m) => `this.${m.name.value}=options.${m.name.value}`)
+        .join(';')}}${node.members
+        .filter((m) => m instanceof StructMethod)
+        .map((m) => genStructMethod(m, options))
+        .join('')}}`;
 }
 
 function genStructMethod(node: StructMethod, options: Options): string {
-    return `\n    ${node.isStatic ? 'static ' : ''}${node.method.name.value}(${node.method.parameters.map((p) => p.name.value).join(', ')}) ${generator(node.method.block, options, INDENT_INCREMENT, 1)}`;
+    return `${node.isStatic ? 'static ' : ''}${node.method.name.value}(${node.method.parameters.map((p) => p.name.value).join(',')})${generator(node.method.block, options)}`;
 }
 
-function genBlockStatement(node: BlockStatement, options: Options, indent: number, scope: number): string {
-    const indentString = ' '.repeat(indent);
-    if (node.statements.length === 0) return `{}\n`;
-    return `{\n${node.statements.map((n) => generator(n, options, indent + INDENT_INCREMENT, scope + 1)).join('\n')}${indentString}}\n`;
+function genBlockStatement(node: BlockStatement, options: Options): string {
+    if (node.statements.length === 0) return '{}';
+    return `{${node.statements.map((n) => generator(n, options)).join(';')}}`;
 }
 
-function genElse(node: Node, options: Options, indent: number): string {
-    return ' '.repeat(indent) + 'else ' + generator(node, options, indent).trimStart();
-}
-
-function genIf(node: IfStatement, options: Options, indent: number, scope: number): string {
-    const indentString = ' '.repeat(indent);
-
-    if (node.alternate !== undefined) {
-        return (
-            indentString +
-            `if (${generator(node.condition, options)}) ${generator(node.block, options, indent, scope + 1)}` +
-            genElse(node.alternate, options, indent)
-        );
+function genIf(node: IfStatement, options: Options): string {
+    if (node.alternate) {
+        return `if(${generator(node.condition, options)})${generator(node.block, options)} else ${generator(node.alternate, options)}`;
     }
 
-    return `${indentString}if (${generator(node.condition, options)}) ${generator(node.block, options, indent, scope)}`;
+    return `if(${generator(node.condition, options)})${generator(node.block, options)}`;
 }
 
 function genObjectLiteral(node: ObjectLiteral, options: Options): string {
-    return `{ ${Object.keys(node.values)
+    return `{${Object.keys(node.values)
         .map((key) => key + (node.values[key] !== null ? `: ${generator(node.values[key]!, options)}` : ''))
-        .join(', ')} }`;
+        .join(',')}}`;
 }

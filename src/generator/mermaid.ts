@@ -50,7 +50,7 @@ export class MermaidGenerator {
         this.declareNode(node);
 
         if (node instanceof Program) {
-            for (const child of node.statements) {
+            for (const child of node.items) {
                 this.edge(node, child);
             }
         } else if (node instanceof Parameter) {

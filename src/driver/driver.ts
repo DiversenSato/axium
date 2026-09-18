@@ -1,4 +1,4 @@
-import { nanoseconds } from 'bun';
+import { nanoseconds, spawn } from 'bun';
 import chalk from 'chalk';
 import { spawnSync } from 'child_process';
 import path from 'path';
@@ -14,6 +14,7 @@ import { ImportDeclaration, NodeType } from '../ast/ast.js';
 
 interface CommandOptions {
     checkTypes: boolean;
+    minify: boolean;
     outDir: string;
     run: boolean;
     verbose: boolean;
@@ -24,6 +25,7 @@ export function main(argv: string[]) {
 
     const options: CommandOptions = {
         checkTypes: true,
+        minify: false,
         outDir: './target/dev',
         run: false,
         verbose: false,
@@ -37,32 +39,47 @@ export function main(argv: string[]) {
             const arg = args[i]!;
             if (!arg) continue; // ignore empty args
 
-            if (arg.startsWith('--')) {
-                // Option
-                const option = arg.slice(2);
-                if (option === 'verbose') {
-                    options.verbose = true;
-                } else if (option === 'run') {
-                    options.run = true;
-                } else if (option === 'out-dir') {
-                    const outDir = args[++i];
-                    if (outDir === undefined) throw new Error('out-dir option was passed but no path was specified');
-                    options.outDir = outDir;
-                } else if (option === 'no-check') {
-                    options.checkTypes = false;
-                } else if (option === 'help') {
-                    printHelp();
-                    return;
-                } else {
-                    throw new Error('Unknown option `' + option + '`');
-                }
-            } else if (arg.startsWith('-')) {
-                const alias = arg.slice(1);
-                if (alias === 'h') {
-                    printHelp();
-                    return;
-                } else {
-                    throw new Error('Unknown alias `' + alias + '`');
+            if (arg.startsWith('-')) {
+                const flags = arg.startsWith('--') ? [arg.slice(1)] : arg.slice(1).split('');
+
+                for (const option of flags) {
+                    switch (option) {
+                        case '-run':
+                        case 'r': {
+                            options.run = true;
+                            break;
+                        }
+                        case '-no-check': {
+                            options.checkTypes = false;
+                            break;
+                        }
+                        case '-verbose':
+                        case 'v': {
+                            options.verbose = true;
+                            break;
+                        }
+                        case '-help':
+                        case 'h': {
+                            printHelp();
+                            return;
+                        }
+                        case '-out-dir':
+                        case 'o': {
+                            const outDir = args[++i];
+                            if (outDir === undefined)
+                                throw new Error('out-dir option was passed but no path was specified');
+                            options.outDir = outDir;
+                            break;
+                        }
+                        case '-minify':
+                        case 'm': {
+                            options.minify = true;
+                            break;
+                        }
+                        default: {
+                            throw new Error('Unknown option `' + option + '`');
+                        }
+                    }
                 }
             } else {
                 // Argument
@@ -73,6 +90,7 @@ export function main(argv: string[]) {
 
         if (inputPath === null) throw new Error('no entry-points specified');
         inputPath = path.isAbsolute(inputPath) ? inputPath : path.join(process.cwd(), inputPath);
+        fs.mkdirSync(options.outDir, { recursive: true });
 
         compile(
             {
@@ -120,6 +138,13 @@ function compile(session: ParseSession, inputPath: string, options: CommandOptio
     compileFile(session, inputPath, options, true);
     const endTime = nanoseconds();
 
+    if (!options.minify) {
+        spawn({
+            cmd: ['bunx', 'prettier', '--write', options.outDir],
+            stdout: 'ignore',
+        });
+    }
+
     const outputFileName = path.basename(inputPath, path.extname(inputPath));
     console.log();
     console.log(chalk.greenBright.bold(outputFileName + ' built succesfully!'));
@@ -163,8 +188,8 @@ function compileFile(session: ParseSession, inputPath: string, options: CommandO
     });
 
     // Compile imports
-    for (let i = 0; i < ast.statements.length; i++) {
-        const node = ast.statements[i]!;
+    for (let i = 0; i < ast.items.length; i++) {
+        const node = ast.items[i]!;
         if (node.nodeType !== NodeType.ImportDeclaration) continue;
         if (!(node instanceof ImportDeclaration)) continue;
 

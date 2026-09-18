@@ -83,7 +83,7 @@ export class Program extends Node {
     public constructor(
         span: Span,
         public readonly name: string,
-        public statements: Node[],
+        public items: Node[],
     ) {
         super(span, NodeType.Program);
     }
@@ -201,7 +201,7 @@ export class VariableDeclaration extends Node {
         public readonly name: Identifier,
         public readonly type: TypeAnnotation | undefined,
         public readonly isMutable: boolean,
-        public readonly init: ExpressionNode,
+        public init: ExpressionNode,
     ) {
         super(span, NodeType.VariableDeclaration);
     }
