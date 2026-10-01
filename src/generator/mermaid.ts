@@ -1,7 +1,7 @@
 import {
     AssignmentNode,
     BinaryExpression,
-    BlockStatement,
+    type BlockStatement,
     CallExpression,
     EnumDeclaration,
     ExpressionStatement,
@@ -17,7 +17,6 @@ import {
     ReturnStatement,
     Program,
     StringLiteral,
-    ThrowStatement,
     UnaryExpression,
     VariableDeclaration,
     WhileStatement,

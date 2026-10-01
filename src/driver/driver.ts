@@ -10,7 +10,9 @@ import { TypeChecker } from '../typeChecker/typeChecker.js';
 import { SyntaxError } from '../errors/SyntaxError.js';
 import { printCodeView } from '../commands/printCodeView.js';
 import type { ParseSession } from '../parsing/parseSession.js';
-import { ImportDeclaration, NodeType } from '../ast/ast.js';
+import type { ImportDeclaration } from '../ast/ast.js';
+import { addFile } from '../span/sourceMap.js';
+import { tokenize } from '../lexer/lexer.js';
 
 interface CommandOptions {
     checkTypes: boolean;
@@ -96,7 +98,7 @@ export function main(argv: string[]) {
             {
                 cwd: process.cwd(),
                 mainDir: path.join(inputPath, '../'),
-                modules: [],
+                modules: new Map(),
             },
             inputPath,
             options,
@@ -135,7 +137,7 @@ export function main(argv: string[]) {
 
 function compile(session: ParseSession, inputPath: string, options: CommandOptions) {
     const startTime = nanoseconds();
-    compileFile(session, inputPath, options, true);
+    compileMain(session, inputPath, options);
     const endTime = nanoseconds();
 
     if (!options.minify) {
@@ -151,27 +153,29 @@ function compile(session: ParseSession, inputPath: string, options: CommandOptio
     console.log(`  in ${((endTime - startTime) / 1_000_000).toFixed(2)}ms`);
 }
 
-function compileFile(session: ParseSession, inputPath: string, options: CommandOptions, isMain = false) {
+function compileMain(session: ParseSession, inputPath: string, options: CommandOptions) {
     if (!fs.existsSync(inputPath)) {
         throw new Error('could not find file ' + inputPath);
     }
 
-    // Return early if file is already emitted
-    for (let i = 0; i < session.modules.length; i++) {
-        if (session.modules[i]!.path === inputPath) return;
-    }
-
     const inputDirectory = path.join(inputPath, '../');
     const sourceCode = fs.readFileSync(inputPath, 'utf8');
-    const parser = new Parser({
-        name: inputPath,
-        content: sourceCode,
-    });
-    const ast = parser.parseProgram(inputPath);
+    const fileId = addFile(inputPath, sourceCode);
 
-    if (options.checkTypes) new TypeChecker(ast).check();
-    let output = generator(ast, { verbose: options.verbose }, 0, 0);
-    if (isMain) output += 'main(process.argv);\n';
+    const parser = new Parser(tokenize(sourceCode, fileId));
+    const items = parser.parse();
+    session.modules.set(inputPath, { items });
+
+    // Collect imported dependencies
+    for (const item of items) {
+        if (item.kind !== 'import') continue;
+
+        const pathToDependency = resolveImportPath(item, inputDirectory);
+        if (pathToDependency) collectImport(session, pathToDependency, options);
+    }
+
+    const program = new TypeChecker().check(session.modules.values().toArray());
+    const output = generator(program, { verbose: options.verbose });
     const outputFileName = path.basename(inputPath, path.extname(inputPath));
     const outputDirectory = path.relative(session.mainDir, inputDirectory);
 
@@ -181,33 +185,58 @@ function compileFile(session: ParseSession, inputPath: string, options: CommandO
         if (options.verbose && error instanceof Error) console.log(error.message);
     }
     fs.writeFileSync(path.join(options.outDir, outputDirectory, outputFileName + '.js'), output);
+}
 
-    session.modules.push({
-        code: ast,
-        path: inputPath,
-    });
+function collectImport(session: ParseSession, inputPath: string, options: CommandOptions) {
+    if (!fs.existsSync(inputPath)) {
+        throw new Error('could not find file ' + inputPath);
+    }
 
-    // Compile imports
-    for (let i = 0; i < ast.items.length; i++) {
-        const node = ast.items[i]!;
-        if (node.nodeType !== NodeType.ImportDeclaration) continue;
-        if (!(node instanceof ImportDeclaration)) continue;
+    // Return early if file is already emitted
+    if (session.modules.has(inputPath)) return;
 
-        // Skip libs
-        if (node.module.length === 0) continue;
-        if (!['self', 'super'].includes(node.module.at(0)!.value)) continue;
+    const inputDirectory = path.join(inputPath, '../');
+    const source = fs.readFileSync(inputPath, 'utf8');
+    const fileId = addFile(inputPath, source);
 
-        const relativeImportPath =
-            node.module
-                .map((d) => d.value)
-                .map((s) => (s === 'super' ? '..' : s === 'self' ? '.' : s))
-                .join('/') + '.axi';
-        const pathToDependency = path.join(inputDirectory, relativeImportPath);
+    const parser = new Parser(tokenize(source, fileId));
+    const items = parser.parse();
+    session.modules.set(inputPath, { items });
 
-        compileFile(session, pathToDependency, options);
+    // Collect imported dependencies
+    for (const item of items) {
+        if (item.kind !== 'import') continue;
+
+        const pathToDependency = resolveImportPath(item, inputDirectory);
+        if (pathToDependency) collectImport(session, pathToDependency, options);
     }
 }
 
 function printHelp() {
     console.log('Usage: axiumc [options] input');
+}
+
+function resolveImportPath(node: ImportDeclaration, inputDirectory: string) {
+    switch (node.module[0]?.value) {
+        case 'self':
+        case 'super': {
+            const relativeImportPath =
+                node.module
+                    .map((d) => d.value)
+                    .map((s) => (s === 'super' ? '..' : s === 'self' ? '.' : s))
+                    .join('/')
+                    .replaceAll(/\w+\/\.\.\//g, '') + '.axi';
+            return path.join(inputDirectory, relativeImportPath);
+        }
+        case 'root': {
+            const relativeImportPath =
+                node.module
+                    .slice(1)
+                    .map((d) => d.value)
+                    .map((s) => (s === 'super' ? '..' : s === 'self' ? '.' : s))
+                    .join('/')
+                    .replaceAll(/\w+\/\.\.\//g, '') + '.axi';
+            return path.join(inputDirectory, relativeImportPath);
+        }
+    }
 }

@@ -2,124 +2,87 @@ import {
     ArrayLiteral,
     AssignmentNode,
     BinaryExpression,
-    BlockStatement,
+    type BlockStatement,
     CallExpression,
-    ContinueStatement,
-    EnumDeclaration,
+    type EnumDeclaration,
     EnumVariant,
-    ExpressionStatement,
-    FunctionDeclaration,
+    type FunctionDeclaration,
     Identifier,
-    IfStatement,
-    ImportDeclaration,
+    type ImportDeclaration,
     Lambda,
-    LoopStatement,
     MatchExpression,
     MatchExpressionBranch,
     MemberExpression,
     NodeType,
     NumberLiteral,
-    ReturnStatement,
     Parameter,
-    Program,
     Span,
-    StaticVariableDeclaration,
+    type StaticVariableDeclaration,
     StringLiteral,
-    StructDeclaration,
+    type StructDeclaration,
     StructInstantiationExpression,
     StructKeyValuePair,
     type StructMember,
     StructMemberBlock,
     Ternary,
-    ThrowStatement,
     TypeAnnotation,
     UnaryExpression,
-    VariableDeclaration,
-    WhileStatement,
     type ExpressionNode,
-    type Node,
     StructMethod,
     StructField,
     CharLiteral,
     ObjectLiteral,
+    type Item,
+    type Statement,
 } from '../ast/ast.js';
 import { SyntaxError } from '../errors/SyntaxError.js';
-import { Lexer, Token, TokenKind } from '../lexer/lexer.js';
-import { getSourceId, type SourceFile } from '../span/sourceMap.js';
+import type { Token, TokenKind } from '../lexer/lexer.js';
 
 const MODIFIERS = new Set(['export']);
-const PRECEDENCE: Partial<Record<TokenKind, number>> = {
-    [TokenKind.OpenBrace]: 50,
-
-    // [TokenKind.Comma]: 1,
-
+const PRECEDENCE: Partial<Record<string, number>> = {
     // Assignment and misc
-    [TokenKind.Equals]: 2,
-    [TokenKind.Increment]: 2,
-    [TokenKind.Arrow]: 2,
-    [TokenKind.Question]: 2,
+    '=': 1,
+    '+=': 1,
+    '++': 1,
+    '=>': 1,
+    '?': 2,
 
-    // Logical OR
-    [TokenKind.DoublePipe]: 3,
+    '||': 3,
+    '&&': 4,
 
-    // Logical AND
-    [TokenKind.And]: 4,
-
-    // Bitwise OR
-    [TokenKind.Pipe]: 5,
-
-    // Bitwise AND
-    [TokenKind.Ampersand]: 6,
+    '|': 5,
+    '^': 6,
+    '&': 7,
 
     // Equality
-    [TokenKind.NotEquals]: 7,
-    [TokenKind.DoubleEquals]: 7,
+    '!=': 8,
+    '==': 8,
 
     // Relational
-    [TokenKind.LessThan]: 8,
-    [TokenKind.LessThanEquals]: 8,
-    [TokenKind.GreaterThan]: 8,
-    [TokenKind.GreaterThanEquals]: 8,
+    '<': 9,
+    '<=': 9,
+    '>': 9,
+    '>=': 9,
 
     // Addition
-    [TokenKind.Plus]: 9,
-    [TokenKind.Dash]: 9,
+    '+': 10,
+    '-': 10,
 
     // Scalar
-    [TokenKind.Star]: 10,
-    [TokenKind.ForwardSlash]: 10,
+    '*': 11,
+    '/': 11,
+    '%': 11,
 
-    // Access
-    [TokenKind.OpenBracket]: 11,
-    [TokenKind.Dot]: 11,
-
-    // Grouping
-    [TokenKind.OpenParen]: 12,
+    '{': 50,
 };
+const RIGHT_ASSOC = new Set(['=', '+=', '-=', '*=', '/=', '?']);
+const UNARY_BP = 13;
+const POSTFIX_BP = 13;
 
 export class Parser {
     private index = 0;
-    private position = 0;
-    private readonly tokens: Token[];
-    // The internal ID of the source file this parser is working on
-    private readonly sourceId: number;
 
-    public constructor(source: SourceFile) {
-        const lexer = new Lexer(source);
-        this.sourceId = getSourceId(source.name);
-
-        const tokens: Token[] = [];
-        while (lexer.hasNext()) {
-            const token = lexer.nextToken();
-            if (token.kind === TokenKind.Eof) break;
-            if (token.kind === TokenKind.Whitespace) continue;
-            if (token.kind === TokenKind.LineComment) continue;
-            if (token.kind === TokenKind.BlockComment) continue;
-            // if (token.kind === TokenKind.Unknown) continue;
-            tokens.push(token);
-        }
-        this.tokens = tokens;
-    }
+    public constructor(private readonly tokens: Token[]) {}
 
     protected peek(offset?: number) {
         return this.tokens.at(this.index + (offset ?? 0));
@@ -128,14 +91,13 @@ export class Parser {
     private advance(): Token {
         const token = this.tokens[this.index++];
         if (token === undefined) throw new SyntaxError('Unexpected end of input');
-        this.position += token.span.len;
         return token;
     }
 
     private expect(type: TokenKind, expectedValue?: string): Token {
         const token = this.advance();
         if (token.kind !== type) {
-            throw new SyntaxError(`Expected ${TokenKind[type]}`, token.span);
+            throw new SyntaxError(`Expected ${expectedValue ?? type}`, token.span);
         }
         if (expectedValue !== undefined && token.value !== expectedValue)
             throw new SyntaxError(`Expected: '${expectedValue}', found: '${token.value}'`, token.span);
@@ -150,149 +112,195 @@ export class Parser {
         return true;
     }
 
-    public parseProgram(name: string): Program {
-        const statements = [];
-        while (this.peek() !== undefined) {
-            statements.push(this.topLevelStatement());
-        }
-
-        return new Program(new Span(0, name.length, this.sourceId), name, statements);
+    private eat(type: TokenKind, expectedValue?: string): boolean {
+        const result = this.match(type, expectedValue);
+        if (result) this.advance();
+        return result;
     }
 
-    private topLevelStatement(): Node {
-        //console.log('topLevelStatement');
-        if (this.match(TokenKind.Identifier, 'import')) return this.importStatement();
-        if (this.match(TokenKind.Identifier, 'fn')) return this.functionDeclaration();
-        if (this.match(TokenKind.Identifier, 'enum')) return this.enumDeclaration();
-        if (this.match(TokenKind.Identifier, 'struct')) return this.structDeclaration();
+    public parse(): Item[] {
+        const items = [];
+        while (!this.match('eof')) items.push(this.item());
+        if (items.length) return items;
+        throw new SyntaxError('file is empty');
+    }
+
+    private item(): Item {
+        if (this.match('ident', 'import')) return this.importDeclaration();
+        if (this.match('ident', 'fn')) return this.functionDeclaration();
+        if (this.match('ident', 'enum')) return this.enumDeclaration();
+        if (this.match('ident', 'struct')) return this.structDeclaration();
 
         // Functions/variables
         const modifiers = this.modifiers();
-        if (this.match(TokenKind.Identifier, 'fn')) return this.functionDeclaration(modifiers);
-        if (this.match(TokenKind.Identifier, 'enum')) return this.enumDeclaration(modifiers);
-        if (this.match(TokenKind.Identifier, 'struct')) return this.structDeclaration(modifiers);
-        if (this.match(TokenKind.Identifier, 'static')) return this.staticItem(modifiers);
+        if (this.match('ident', 'fn')) return this.functionDeclaration(modifiers);
+        if (this.match('ident', 'enum')) return this.enumDeclaration(modifiers);
+        if (this.match('ident', 'struct')) return this.structDeclaration(modifiers);
+        if (this.match('ident', 'static')) return this.staticItem(modifiers);
 
         const token = this.advance();
         throw new SyntaxError('unknown token', token.span);
     }
 
-    private staticItem(modifiers: Identifier[]): StaticVariableDeclaration {
-        const start = this.expect(TokenKind.Identifier, 'static').span;
+    private staticItem(modifiers: string[]): StaticVariableDeclaration {
+        const start = this.expect('ident', 'static').span;
 
         let isMutable = false;
-        if (this.match(TokenKind.Identifier, 'mut')) {
+        if (this.match('ident', 'mut')) {
             this.advance();
             isMutable = true;
         }
 
-        const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
+        const name = Identifier.fromToken(this.expect('ident'));
 
-        this.expect(TokenKind.Colon);
+        this.expect('punct', 'colon');
         const type = this.typeAnnotation();
 
-        this.expect(TokenKind.Equals);
+        this.expect('punct', '=');
         const expr = this.expression();
-        const end = this.expect(TokenKind.Semi).span;
-        return new StaticVariableDeclaration(Span.fromEnclosing(start, end), name, type, isMutable, expr, modifiers);
+        const end = this.expect('punct', ';').span;
+        return {
+            kind: 'staticVar',
+            init: expr,
+            isMutable,
+            name,
+            modifiers,
+            type,
+            span: Span.from(start, end),
+        };
     }
 
-    private functionStatement(): Node {
-        //console.log('functionStatement');
-        if (this.match(TokenKind.Identifier, 'let')) return this.variableDeclaration();
-        if (this.match(TokenKind.Identifier, 'if')) return this.ifStatement();
-        if (this.match(TokenKind.Identifier, 'while')) return this.whileStatement();
-        if (this.match(TokenKind.Identifier, 'loop')) return this.loopStatement();
-        if (this.match(TokenKind.Identifier, 'return')) return this.returnStatement();
-        if (this.match(TokenKind.Identifier, 'throw')) return this.throwStatement();
-        if (this.match(TokenKind.Identifier, 'continue')) return this.continueStatement();
-        if (this.match(TokenKind.Identifier, 'match')) return this.matchExpression();
-        if (this.match(TokenKind.Identifier) && this.peek(1)?.kind === TokenKind.Equals) return this.assignment();
+    private statement(): Statement {
+        const token = this.peek();
+        if (token?.kind === 'ident') {
+            switch (token.value) {
+                case 'let': {
+                    return this.variableDeclaration();
+                }
+                case 'if':
+                    return this.ifStatement();
+                case 'while':
+                    return this.whileStatement();
+                case 'loop': {
+                    const start = this.expect('ident', 'loop').span;
+                    const block = this.block();
+                    return { kind: 'loop', block, span: Span.from(start, block.span) };
+                }
+                case 'return': {
+                    const start = this.expect('ident', 'return').span;
+                    if (this.eat('punct', ';')) return { kind: 'return', span: start };
+
+                    const expression = this.expression();
+                    this.expect('punct', ';');
+                    return { kind: 'return', expression, span: start };
+                }
+                case 'break':
+                case 'continue': {
+                    this.advance();
+                    const end = this.expect('punct', ';').span;
+                    return { kind: token.value, span: Span.from(token.span, end) };
+                }
+            }
+        }
 
         return this.expressionStatement();
     }
 
-    private structDeclaration(modifiers: Identifier[] = []): StructDeclaration {
-        //console.log('structDeclaration');
-        const startSpan = this.expect(TokenKind.Identifier, 'struct').span;
-        const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
+    private structDeclaration(modifiers: string[] = []): StructDeclaration {
+        const startSpan = this.expect('ident', 'struct').span;
+        const name = Identifier.fromToken(this.expect('ident'));
 
-        this.expect(TokenKind.OpenBrace);
+        this.expect('punct', '{');
         const members: StructMember[] = [];
-        while (!this.match(TokenKind.CloseBrace)) {
-            if (this.match(TokenKind.Identifier, 'static')) {
+        while (!this.match('punct', '}')) {
+            if (this.match('ident', 'static')) {
                 this.advance();
                 members.push(new StructMethod(this.functionDeclaration(), true));
                 continue;
-            } else if (this.match(TokenKind.Identifier, 'fn')) {
+            } else if (this.match('ident', 'fn')) {
                 members.push(new StructMethod(this.functionDeclaration()));
                 continue;
             } else {
-                const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
-                this.expect(TokenKind.Colon);
+                const name = Identifier.fromToken(this.expect('ident'));
+                this.expect('punct', ':');
 
                 const type = this.typeAnnotation();
-                members.push(new StructField(Span.fromEnclosing(name.span, type.span), name, type));
+                members.push(new StructField(Span.from(name.span, type.span), name, type));
             }
 
-            if (this.match(TokenKind.Semi)) this.expect(TokenKind.Semi);
+            if (this.match('punct', ';')) this.expect('punct', ';');
             else break;
         }
-        const endSpan = this.expect(TokenKind.CloseBrace).span;
+        const endSpan = this.expect('punct', '}').span;
 
-        return new StructDeclaration(Span.fromEnclosing(startSpan, endSpan), name, members, modifiers);
+        return {
+            kind: 'struct',
+            members,
+            name,
+            modifiers,
+            span: Span.from(startSpan, endSpan),
+        };
     }
 
-    private enumDeclaration(modifiers: Identifier[] = []): EnumDeclaration {
-        //console.log('enumDeclaration');
-        const startSpan = this.expect(TokenKind.Identifier, 'enum').span;
-        const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
+    private enumDeclaration(modifiers: string[] = []): EnumDeclaration {
+        const startSpan = this.expect('ident', 'enum').span;
+        const name = Identifier.fromToken(this.expect('ident'));
 
-        this.expect(TokenKind.OpenBrace);
+        this.expect('punct', '{');
         const variants: EnumVariant[] = [];
-        while (!this.match(TokenKind.CloseBrace)) {
-            const name = Identifier.fromToken(this.expect(TokenKind.Identifier));
+        while (!this.match('punct', '}')) {
+            const name = Identifier.fromToken(this.expect('ident'));
 
-            if (this.match(TokenKind.OpenParen)) {
+            if (this.match('punct', '(')) {
                 this.advance();
 
                 const tupleItems: Identifier[] = [];
-                while (!this.match(TokenKind.CloseParen)) {
-                    tupleItems.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
-                    if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
-                    else break;
+                while (!this.match('punct', ')')) {
+                    tupleItems.push(Identifier.fromToken(this.expect('ident')));
+                    if (!this.match('punct', ',')) break;
+                    this.advance();
                 }
 
-                variants.push(new EnumVariant(name, tupleItems));
-                this.expect(TokenKind.CloseParen);
+                variants.push(
+                    new EnumVariant(name.span, name, {
+                        kind: 'tuple',
+                        payload: tupleItems,
+                    }),
+                );
+                this.expect('punct', ')');
             } else {
-                variants.push(new EnumVariant(name, undefined));
+                variants.push(new EnumVariant(name.span, name, undefined));
             }
 
-            if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
-            else break;
+            if (!this.match('punct', ',')) break;
+            this.advance();
         }
-        const endSpan = this.expect(TokenKind.CloseBrace).span;
+        const endSpan = this.expect('punct', '}').span;
 
-        return new EnumDeclaration(Span.fromEnclosing(startSpan, endSpan), name, variants, modifiers);
+        return {
+            kind: 'enum',
+            modifiers,
+            name,
+            span: Span.from(startSpan, endSpan),
+            variants,
+        };
     }
 
     private matchExpression(): MatchExpression {
-        //console.log('matchExpression');
-        const startSpan = this.expect(TokenKind.Identifier, 'match').span;
+        const startSpan = this.expect('ident', 'match').span;
 
-        this.expect(TokenKind.OpenParen);
+        this.expect('punct', '(');
         const expression = this.expression();
-        this.expect(TokenKind.CloseParen);
+        this.expect('punct', ')');
 
-        this.expect(TokenKind.OpenBrace);
+        this.expect('punct', '{');
         const branches: MatchExpressionBranch[] = [];
         do {
             branches.push(this.matchExpressionBranch());
-        } while (!this.match(TokenKind.CloseBrace));
-        const endSpan = this.expect(TokenKind.CloseBrace).span;
+        } while (!this.match('punct', '}'));
+        const endSpan = this.expect('punct', '}').span;
 
-        return new MatchExpression(Span.fromEnclosing(startSpan, endSpan), expression, branches);
+        return new MatchExpression(Span.from(startSpan, endSpan), expression, branches);
     }
 
     private matchExpressionBranch(): MatchExpressionBranch {
@@ -300,206 +308,172 @@ export class Parser {
         const token = this.advance();
 
         let match: Identifier | NumberLiteral | StringLiteral;
-        if (token.kind === TokenKind.Identifier) {
+        if (token.kind === 'ident') {
             match = Identifier.fromToken(token);
-        } else if (token.kind === TokenKind.NumberLiteral) {
+        } else if (token.kind === 'int' || token.kind === 'float') {
             match = NumberLiteral.fromToken(token);
-        } else if (token.kind === TokenKind.StringLiteral) {
+        } else if (token.kind === 'str') {
             match = StringLiteral.fromToken(token);
         } else {
             throw new SyntaxError('Unknown token in match branch', token.span);
         }
 
-        this.expect(TokenKind.Arrow);
+        this.expect('punct', '=>');
 
         const expression = this.expression();
-        const endSpan = this.expect(TokenKind.Comma).span;
+        const endSpan = this.expect('punct', ',').span;
 
-        return new MatchExpressionBranch(Span.fromEnclosing(token.span, endSpan), match, expression);
+        return new MatchExpressionBranch(Span.from(token.span, endSpan), match, expression);
     }
 
-    private expressionStatement(): ExpressionStatement {
-        //console.log('expressionStatement');
+    private expressionStatement(): Statement {
         const expression = this.expression();
-        const endSpan = this.expect(TokenKind.Semi).span;
-        return new ExpressionStatement(Span.fromEnclosing(expression.span, endSpan), expression);
+        const end = this.expect('punct', ';').span;
+        return { kind: 'expression', expression, span: Span.from(expression.span, end) };
     }
 
-    private blockStatement(): BlockStatement {
-        //console.log('blockStatement');
-        if (!this.match(TokenKind.OpenBrace)) {
-            const stmt = this.functionStatement();
-            return new BlockStatement(stmt.span, [stmt]);
+    private block(): BlockStatement {
+        if (!this.match('punct', '{')) {
+            const stmt = this.statement();
+            return { kind: 'block', statements: [stmt], span: stmt.span };
         }
 
-        const startSpan = this.expect(TokenKind.OpenBrace).span;
+        const startSpan = this.expect('punct', '{').span;
         const statements = [];
-        while (!this.match(TokenKind.CloseBrace)) {
-            statements.push(this.functionStatement());
+        while (!this.match('punct', '}')) {
+            statements.push(this.statement());
         }
-        const endSpan = this.expect(TokenKind.CloseBrace).span;
-        return new BlockStatement(Span.fromEnclosing(startSpan, endSpan), statements);
+        const endSpan = this.expect('punct', '}').span;
+        return { kind: 'block', statements, span: Span.from(startSpan, endSpan) };
     }
 
-    private importStatement(): Node {
-        const startSpan = this.expect(TokenKind.Identifier, 'import').span;
-        const identifiers = [Identifier.fromToken(this.expect(TokenKind.Identifier))];
+    private importDeclaration(): ImportDeclaration {
+        const startSpan = this.expect('ident', 'import').span;
+        const identifiers = [Identifier.fromToken(this.expect('ident'))];
 
         const items: Identifier[] = [];
-        while (this.match(TokenKind.DoubleColon)) {
+        while (this.match('punct', '::')) {
             this.advance();
 
-            if (this.match(TokenKind.OpenBrace)) {
+            if (this.match('punct', '{')) {
                 this.advance();
-                items.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
+                items.push(Identifier.fromToken(this.expect('ident')));
 
-                while (this.match(TokenKind.Comma)) {
+                while (this.match('punct', ',')) {
                     this.advance();
-                    items.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
+                    items.push(Identifier.fromToken(this.expect('ident')));
                 }
 
-                this.expect(TokenKind.CloseBrace);
+                this.expect('punct', '}');
                 break;
             }
 
-            identifiers.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
+            identifiers.push(Identifier.fromToken(this.expect('ident')));
         }
-        const endSpan = this.expect(TokenKind.Semi).span;
+        const endSpan = this.expect('punct', ';').span;
 
-        return new ImportDeclaration(Span.fromEnclosing(startSpan, endSpan), identifiers, items);
+        return {
+            kind: 'import',
+            items,
+            module: identifiers,
+            span: Span.from(startSpan, endSpan),
+        };
     }
 
     private typeAnnotation(): TypeAnnotation {
-        const isArray = this.match(TokenKind.OpenBracket);
-        if (isArray) this.advance();
-        const type = this.expect(TokenKind.Identifier);
+        const type = this.expect('ident');
 
         const parameters: TypeAnnotation[] = [];
-        if (this.match(TokenKind.LessThan)) {
+        if (this.match('punct', '<')) {
             this.advance();
             while (true) {
                 parameters.push(this.typeAnnotation());
-                if (this.match(TokenKind.GreaterThan)) break;
-                this.expect(TokenKind.Comma);
+                if (this.match('punct', '>')) break;
+                this.expect('punct', ',');
             }
-            this.expect(TokenKind.GreaterThan);
+            this.expect('punct', '>');
         }
 
-        if (isArray) this.expect(TokenKind.CloseBracket);
+        const isArray = this.match('punct', '[');
+        if (isArray) {
+            this.advance();
+            this.expect('punct', ']');
+        }
 
         return new TypeAnnotation(type.span, Identifier.fromToken(type), parameters, isArray);
     }
 
-    private functionDeclaration(modifiers: Identifier[] = []): FunctionDeclaration {
-        //console.log('functionDeclaration');
-        const startSpan = this.expect(TokenKind.Identifier, 'fn').span;
-        const functionName = this.expect(TokenKind.Identifier);
-        this.expect(TokenKind.OpenParen);
+    private functionDeclaration(modifiers: string[] = []): FunctionDeclaration {
+        const startSpan = this.expect('ident', 'fn').span;
+        const name = this.expect('ident').value;
+        this.expect('punct', '(');
 
         const parameters: Parameter[] = [];
-        // Arguments
-        while (!this.match(TokenKind.CloseParen)) {
+        while (!this.match('punct', ')')) {
             const type = this.typeAnnotation();
-            const name = this.expect(TokenKind.Identifier);
+            const name = this.expect('ident');
             parameters.push(new Parameter(type, Identifier.fromToken(name)));
 
-            if (this.match(TokenKind.Comma)) this.expect(TokenKind.Comma);
+            if (this.match('punct', ',')) this.expect('punct', ',');
             else break;
         }
-        this.expect(TokenKind.CloseParen);
+        this.expect('punct', ')');
 
-        let type: Identifier | null = null;
-        if (this.match(TokenKind.Colon)) {
-            this.expect(TokenKind.Colon);
-            type = Identifier.fromToken(this.expect(TokenKind.Identifier));
-        }
-
-        const node = new FunctionDeclaration(
-            startSpan,
-            Identifier.fromToken(functionName),
-            type,
-            parameters,
-            this.blockStatement(),
-            modifiers,
-        );
-        return node;
-    }
-
-    private variableDeclaration(): VariableDeclaration {
-        //console.log('variableDeclaration');
-        const startSpan = this.expect(TokenKind.Identifier, 'let').span;
-
-        let isMutable = false;
-        if (this.match(TokenKind.Identifier, 'mut')) {
-            isMutable = true;
-            this.expect(TokenKind.Identifier, 'mut');
-        }
-
-        const functionName = this.expect(TokenKind.Identifier);
-        let type: TypeAnnotation | undefined = undefined;
-        if (this.match(TokenKind.Colon)) {
-            this.expect(TokenKind.Colon);
+        let type: TypeAnnotation | null = null;
+        if (this.eat('punct', ':')) {
             type = this.typeAnnotation();
         }
 
-        this.expect(TokenKind.Equals);
-
-        // Parse initialiser
-        const expression = this.expression();
-
-        const endSpan = this.expect(TokenKind.Semi).span;
-        return new VariableDeclaration(
-            Span.fromEnclosing(startSpan, endSpan),
-            Identifier.fromToken(functionName),
-            type,
-            isMutable,
-            expression,
-        );
+        const block = this.block();
+        return { kind: 'function', name, parameters, type, block, modifiers, span: Span.from(startSpan, block.span) };
     }
 
-    private assignment(): AssignmentNode {
-        //console.log('assignment');
-        const name = this.expect(TokenKind.Identifier);
+    private variableDeclaration(): Statement {
+        const startSpan = this.expect('ident', 'let').span;
 
-        this.expect(TokenKind.Equals);
+        const mutable = this.eat('ident', 'mut');
+        const name = this.expect('ident').value;
+        const type = this.eat('punct', ':') ? this.typeAnnotation() : undefined;
 
-        const expression = this.expression();
-        const endSpan = this.expect(TokenKind.Semi).span;
-        return new AssignmentNode(Span.fromEnclosing(name.span, endSpan), Identifier.fromToken(name), expression);
+        this.expect('punct', '=');
+
+        const init = this.expression();
+        const endSpan = this.expect('punct', ';').span;
+        return { kind: 'let', name, mutable, type, init, span: Span.from(startSpan, endSpan) };
     }
 
-    private expression(minBp?: number): ExpressionNode {
-        //console.log('expression');
+    private expression(minBp = 0): ExpressionNode {
         let left = this.prefix();
         if (left.nodeType === NodeType.Lambda) return left;
 
         while (true) {
             const operator = this.peek();
-            if (operator === undefined) break;
-            const bp = PRECEDENCE[operator.kind] ?? -1;
-            if (bp <= (minBp ?? 0)) break;
+            if (operator?.kind !== 'punct') break;
 
+            if (operator.value === '(' || operator.value === '.' || operator.value === '[') {
+                if (POSTFIX_BP <= minBp) break;
+                left = this.postfix(left);
+                continue;
+            }
+
+            const bp = PRECEDENCE[operator.kind];
+            if (bp === undefined || bp <= minBp) break;
             this.advance(); // Consume operator
+            const rightBp = RIGHT_ASSOC.has(operator.value) ? bp - 1 : bp;
 
-            if (operator.kind === TokenKind.Dot) {
-                const property = this.expect(TokenKind.Identifier);
-                left = new MemberExpression(left, Identifier.fromToken(property));
-            } else if (operator.kind === TokenKind.OpenParen) {
-                // Call expression
-                const args = this.args();
-                left = new CallExpression(left, args);
-            } else if (operator.kind === TokenKind.OpenBracket) {
-                // member index like car.wheels[2]
-                const index = this.expression(0);
-                this.expect(TokenKind.CloseBracket);
-                left = new MemberExpression(left, index, true);
-            } else if (operator.kind === TokenKind.Question) {
+            if (operator.value === '?') {
                 const y = this.expression();
-                this.expect(TokenKind.Colon);
+                this.expect('punct', ':');
                 const z = this.expression();
-                left = new Ternary(Span.fromEnclosing(left.span, z.span), left, y, z);
+                left = new Ternary(Span.from(left.span, z.span), left, y, z);
+            } else if (bp === PRECEDENCE['=']) {
+                if (left.nodeType !== NodeType.Identifier && left.nodeType !== NodeType.MemberExpression)
+                    throw new SyntaxError('invalid assignment target', left.span);
+
+                const value = this.expression(rightBp);
+                left = new AssignmentNode(left.span, left as Identifier, value);
             } else {
-                const right = this.expression(bp);
+                const right = this.expression(rightBp);
                 left = new BinaryExpression(operator.value, left, right);
             }
         }
@@ -509,232 +483,201 @@ export class Parser {
 
     private prefix(): ExpressionNode {
         //console.log('prefix');
-        if (this.match(TokenKind.Identifier, 'match')) return this.matchExpression();
+        if (this.match('ident', 'match')) return this.matchExpression();
 
         const token = this.advance();
 
         switch (token.kind) {
-            case TokenKind.NumberLiteral:
+            case 'int':
+            case 'float':
                 return NumberLiteral.fromToken(token);
-            case TokenKind.CharLiteral:
+            case 'char':
                 return CharLiteral.fromToken(token);
-            case TokenKind.StringLiteral:
+            case 'str':
                 return StringLiteral.fromToken(token);
-            case TokenKind.Identifier: {
-                if (this.match(TokenKind.OpenParen)) return this.callExpression(Identifier.fromToken(token));
-                if (this.match(TokenKind.OpenBrace)) return this.structMemberBlock(Identifier.fromToken(token));
+            case 'ident': {
+                if (this.match('punct', '(')) return this.callExpression(Identifier.fromToken(token));
+                if (this.match('punct', '{')) return this.structMemberBlock(Identifier.fromToken(token));
                 return Identifier.fromToken(token);
             }
-            case TokenKind.Dash:
-                return new UnaryExpression('-', this.expression(25));
-            case TokenKind.Exclamation:
-                return new UnaryExpression('!', this.expression(25));
-            case TokenKind.Plus: {
-                if (this.match(TokenKind.Plus)) {
-                    this.advance();
-                    return new UnaryExpression('++', this.expression(25));
-                }
-                break;
-            }
-            case TokenKind.OpenParen: {
-                // Grouping
-                const inner = this.expression(0);
-
-                if (this.match(TokenKind.Comma)) {
-                    // Lambda with many parameters
-                    this.advance();
-
-                    if (!(inner instanceof Identifier))
-                        throw new SyntaxError('parameter must be an identifier', inner.span);
-                    const parameters = [inner];
-                    while (true) {
-                        parameters.push(Identifier.fromToken(this.expect(TokenKind.Identifier)));
-                        if (this.match(TokenKind.CloseParen)) break;
-                        this.expect(TokenKind.Comma);
+            case 'punct': {
+                switch (token.value) {
+                    case '-':
+                    case '!':
+                        return new UnaryExpression(token.value, this.expression(UNARY_BP - 1));
+                    case '+': {
+                        if (this.match('punct', '+')) {
+                            this.advance();
+                            return new UnaryExpression('++', this.expression(25));
+                        }
+                        break;
                     }
-                    this.expect(TokenKind.CloseParen);
-                    this.expect(TokenKind.Arrow);
-                    const expr = this.expression();
-                    return new Lambda(Span.fromEnclosing(token.span, expr.span), parameters, expr);
-                }
+                    case '(': {
+                        // Grouping
+                        const inner = this.expression(0);
 
-                this.expect(TokenKind.CloseParen);
+                        if (this.match('punct', ',')) {
+                            // Lambda with many parameters
+                            this.advance();
 
-                if (this.match(TokenKind.Arrow)) {
-                    // Lambda with 1 parameter
-                    this.advance();
-                    if (!(inner instanceof Identifier))
-                        throw new SyntaxError('parameter must be an identifier', inner.span);
-                    const expr = this.expression();
-                    return new Lambda(Span.fromEnclosing(token.span, expr.span), [inner], expr);
-                }
+                            if (!(inner instanceof Identifier))
+                                throw new SyntaxError('parameter must be an identifier', inner.span);
+                            const parameters = [inner];
+                            while (true) {
+                                parameters.push(Identifier.fromToken(this.expect('ident')));
+                                if (this.match('punct', ')')) break;
+                                this.expect('punct', ',');
+                            }
+                            this.expect('punct', ')');
+                            this.expect('punct', '=>');
+                            const expr = this.expression();
+                            return new Lambda(Span.from(token.span, expr.span), parameters, expr);
+                        }
 
-                return inner;
-            }
-            case TokenKind.OpenBracket: {
-                if (this.match(TokenKind.CloseBracket)) {
-                    const end = this.advance().span;
-                    return new ArrayLiteral(Span.fromEnclosing(token.span, end), []);
-                }
+                        this.expect('punct', ')');
 
-                const values = [];
-                while (true) {
-                    values.push(this.expression());
-                    if (this.match(TokenKind.CloseBracket)) break;
-                    this.expect(TokenKind.Comma);
-                }
-                const end = this.advance().span;
-                return new ArrayLiteral(Span.fromEnclosing(token.span, end), values);
-            }
-            case TokenKind.OpenBrace: {
-                const values: Record<string, ExpressionNode | null> = {};
-                while (true) {
-                    if (this.match(TokenKind.CloseBrace)) break;
-                    const key = this.expect(TokenKind.Identifier);
-                    let val: ExpressionNode | null = null;
-                    if (this.match(TokenKind.Colon)) {
-                        this.advance();
-                        val = this.expression();
+                        if (this.match('punct', '=>')) {
+                            // Lambda with 1 parameter
+                            this.advance();
+                            if (!(inner instanceof Identifier))
+                                throw new SyntaxError('parameter must be an identifier', inner.span);
+                            const expr = this.expression();
+                            return new Lambda(Span.from(token.span, expr.span), [inner], expr);
+                        }
+
+                        return inner;
                     }
-                    values[key.value] = val;
+                    case '[': {
+                        if (this.match('punct', ']')) {
+                            const end = this.advance().span;
+                            return new ArrayLiteral(Span.from(token.span, end), []);
+                        }
 
-                    if (!this.match(TokenKind.Comma)) break;
-                    this.advance(); // Consume comma
+                        const values = [];
+                        while (true) {
+                            values.push(this.expression());
+                            if (this.match('punct', ']')) break;
+                            this.expect('punct', ',');
+                        }
+                        const end = this.advance().span;
+                        return new ArrayLiteral(Span.from(token.span, end), values);
+                    }
+                    case '{': {
+                        const values: Record<string, ExpressionNode | null> = {};
+                        while (true) {
+                            if (this.match('punct', '}')) break;
+                            const key = this.expect('ident');
+                            let val: ExpressionNode | null = null;
+                            if (this.match('punct', ':')) {
+                                this.advance();
+                                val = this.expression();
+                            }
+                            values[key.value] = val;
+
+                            if (!this.match('punct', ',')) break;
+                            this.advance(); // Consume comma
+                        }
+                        const end = this.expect('punct', '}').span;
+                        return new ObjectLiteral(Span.from(token.span, end), values);
+                    }
                 }
-                const end = this.expect(TokenKind.CloseBrace).span;
-                return new ObjectLiteral(Span.fromEnclosing(token.span, end), values);
             }
         }
 
-        throw new SyntaxError(`unexpected token: ${TokenKind[token.kind]}`, token.span);
+        throw new SyntaxError(`unexpected token: ${token.value}`, token.span);
     }
 
-    private args(): ExpressionNode[] {
-        //console.log('args');
-        const args: ExpressionNode[] = [];
-        if (this.match(TokenKind.CloseParen)) {
-            this.advance();
-            return args;
+    private postfix(left: ExpressionNode): ExpressionNode {
+        const operator = this.advance();
+        if (operator.value === '(') {
+            const args: ExpressionNode[] = [];
+            while (!this.match('punct', ')')) {
+                args.push(this.expression());
+                if (!this.match('punct', ',')) break;
+                this.advance();
+            }
+            this.expect('punct', ')');
+            return new CallExpression(left, args);
         }
 
-        do {
-            args.push(this.expression());
-        } while (this.match(TokenKind.Comma) && this.advance());
+        if (operator.value === '.') {
+            const name = Identifier.fromToken(this.expect('ident'));
+            return new MemberExpression(left, name);
+        }
 
-        this.expect(TokenKind.CloseParen);
-        return args;
+        const index = this.expression();
+        this.expect('punct', ']');
+        return new MemberExpression(left, index, true);
     }
 
     private structMemberBlock(structName: Identifier): StructInstantiationExpression {
         //console.log('structMemberBlock');
-        const start = this.expect(TokenKind.OpenBrace).span;
+        const start = this.expect('punct', '{').span;
         const values: StructKeyValuePair[] = [];
-        while (!this.match(TokenKind.CloseBrace)) {
-            const property = Identifier.fromToken(this.expect(TokenKind.Identifier));
+        while (!this.match('punct', '}')) {
+            const property = Identifier.fromToken(this.expect('ident'));
 
             let expr: ExpressionNode = property;
-            if (this.match(TokenKind.Colon)) {
-                this.expect(TokenKind.Colon);
+            if (this.match('punct', ':')) {
+                this.expect('punct', ':');
                 expr = this.expression();
             }
 
-            const end = this.expect(TokenKind.Comma).span;
+            const end = this.expect('punct', ',').span;
 
-            values.push(new StructKeyValuePair(Span.fromEnclosing(property.span, end), property, expr));
+            values.push(new StructKeyValuePair(Span.from(property.span, end), property, expr));
         }
-        const end = this.expect(TokenKind.CloseBrace).span;
-        const block = new StructMemberBlock(Span.fromEnclosing(start, end), values);
+        const end = this.expect('punct', '}').span;
+        const block = new StructMemberBlock(Span.from(start, end), values);
         return new StructInstantiationExpression(structName, block);
     }
 
     private callExpression(name: Identifier): CallExpression {
         //console.log('callExpression');
-        this.expect(TokenKind.OpenParen);
+        this.expect('punct', '(');
         const expressions = [];
-        if (!this.match(TokenKind.CloseParen)) {
+        if (!this.match('punct', ')')) {
             while (true) {
                 expressions.push(this.expression());
-                if (this.match(TokenKind.CloseParen)) break;
-                this.expect(TokenKind.Comma);
+                if (this.match('punct', ')')) break;
+                this.expect('punct', ',');
             }
         }
-        this.expect(TokenKind.CloseParen);
+        this.expect('punct', ')');
         return new CallExpression(name, expressions);
     }
 
-    private modifiers(): Identifier[] {
-        //console.log('modifiers');
-        const modifiers: Identifier[] = [];
+    private modifiers(): string[] {
+        const modifiers: string[] = [];
 
-        while (this.match(TokenKind.Identifier) && MODIFIERS.has(this.peek()!.value)) {
-            modifiers.push(Identifier.fromToken(this.advance()));
+        while (this.match('ident') && MODIFIERS.has(this.peek()!.value)) {
+            modifiers.push(this.advance().value);
         }
 
         return modifiers;
     }
 
-    private ifStatement(): IfStatement {
-        //console.log('ifStatement');
-        const startSpan = this.expect(TokenKind.Identifier, 'if').span;
-        this.expect(TokenKind.OpenParen);
+    private ifStatement(): Statement {
+        const startSpan = this.expect('ident', 'if').span;
+        this.expect('punct', '(');
         const condition = this.expression();
-        this.expect(TokenKind.CloseParen);
+        this.expect('punct', ')');
 
-        const block = this.blockStatement();
-        if (this.match(TokenKind.Identifier, 'else')) {
-            this.advance(); // Consume "else"
-            if (this.match(TokenKind.Identifier, 'if'))
-                return new IfStatement(startSpan, condition, block, this.ifStatement());
-            if (this.match(TokenKind.OpenBrace))
-                return new IfStatement(startSpan, condition, block, this.blockStatement());
-            return new IfStatement(startSpan, condition, block, this.functionStatement());
+        const block = this.block();
+        if (this.eat('ident', 'else')) {
+            const els = this.block();
+            return { kind: 'if', condition, then: block, else: els, span: Span.from(startSpan, els.span) };
         }
-        return new IfStatement(Span.fromEnclosing(startSpan, block.span), condition, block);
+        return { kind: 'if', condition, then: block, span: Span.from(startSpan, block.span) };
     }
 
-    private whileStatement(): WhileStatement {
-        //console.log('whileStatement');
-        const startSpan = this.expect(TokenKind.Identifier, 'while').span;
-        this.expect(TokenKind.OpenParen);
+    private whileStatement(): Statement {
+        const startSpan = this.expect('ident', 'while').span;
+        this.expect('punct', '(');
         const condition = this.expression();
-        this.expect(TokenKind.CloseParen);
+        this.expect('punct', ')');
 
-        const block = this.blockStatement();
-        return new WhileStatement(Span.fromEnclosing(startSpan, block.span), condition, block);
-    }
-
-    private loopStatement(): LoopStatement {
-        //console.log('loopStatement');
-        const span = this.expect(TokenKind.Identifier, 'loop').span;
-        const block = this.blockStatement();
-        return new LoopStatement(Span.fromEnclosing(span, block.span), block);
-    }
-
-    private returnStatement(): ReturnStatement {
-        //console.log('returnStatement');
-        const span = this.expect(TokenKind.Identifier, 'return').span;
-        if (this.match(TokenKind.Semi)) {
-            this.advance();
-            return new ReturnStatement(span);
-        }
-
-        const node = new ReturnStatement(span, this.expression());
-        this.expect(TokenKind.Semi);
-        return node;
-    }
-
-    private throwStatement(): ThrowStatement {
-        //console.log('throwStatement');
-        const startSpan = this.expect(TokenKind.Identifier, 'throw').span;
-        const expression = this.expression();
-        const endSpan = this.expect(TokenKind.Semi).span;
-        return new ThrowStatement(Span.fromEnclosing(startSpan, endSpan), expression);
-    }
-
-    private continueStatement(): ContinueStatement {
-        //console.log('continueStatement');
-        const start = this.expect(TokenKind.Identifier, 'continue').span;
-        this.expect(TokenKind.Semi);
-        return new ContinueStatement(start);
+        const block = this.block();
+        return { kind: 'while', condition, block, span: Span.from(startSpan, block.span) };
     }
 }

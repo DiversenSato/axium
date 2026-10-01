@@ -1,7 +1,7 @@
 import {
     AssignmentNode,
     BinaryExpression,
-    BlockStatement,
+    type BlockStatement,
     CallExpression,
     EnumDeclaration,
     ExpressionStatement,
@@ -17,7 +17,6 @@ import {
     ReturnStatement,
     Program,
     StringLiteral,
-    ThrowStatement,
     UnaryExpression,
     VariableDeclaration,
     WhileStatement,
@@ -35,6 +34,7 @@ import {
     ObjectLiteral,
     type EnumVariant,
 } from './ast/ast.js';
+import prelude from './prelude.txt';
 
 interface Options {
     verbose: boolean;
@@ -42,7 +42,7 @@ interface Options {
 
 export function generator(node: Node, options: Options): string {
     if (node instanceof Program) {
-        let compiled = 'function Error(msg){throw msg};';
+        let compiled = prelude;
         for (const child of node.items) {
             compiled += generator(child, options) + ';';
         }

@@ -18,7 +18,7 @@ struct CommandOptions {
     verbose: bool;
 }
 
-export fn main([string] argv) {
+export fn main(string[] argv) {
     let args = argv.slice(2);
 
     let options = CommandOptions {

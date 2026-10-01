@@ -1,12 +1,11 @@
-import type { Node } from '../ast/ast.js';
+import type { Item } from '../ast/ast.js';
 
-interface Module {
-    code: Node;
-    path: string;
+export interface Module {
+    items: Item[];
 }
 
 export interface ParseSession {
     cwd: string;
     mainDir: string;
-    modules: Module[];
+    modules: Map<string, Module>;
 }

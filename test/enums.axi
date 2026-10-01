@@ -3,13 +3,13 @@ enum Option {
     None,
 }
 
-fn main([string] args) {
-    let result: Option = None;
+fn main(string[] args) {
+    let mut result = Option.None;
 
-    let maow = match (result) {
+    let word = match (result) {
         Some => "Hello",
         None => "World",
     };
 
-    console.log(maow);
+    console.log(2.2);
 }

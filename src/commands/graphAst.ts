@@ -28,7 +28,7 @@ export const graphAstCommand = new Command('graph-ast')
             name: pathToMain,
             content: sourceCode,
         });
-        const ast = parser.parseProgram('main');
+        const ast = parser.parse('main');
         new TypeChecker(ast).check();
         const graphCode = new MermaidGenerator().generate(ast);
         await Bun.write('ast.mmd', graphCode);

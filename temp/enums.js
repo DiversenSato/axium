@@ -8,6 +8,6 @@ function main(args) {
         if (result === Some) return 'Hello';
         if (result === None) return 'World';
     })();
-    console.log(maow);
+    console.log(2.2);
 }
 main(process.argv);
